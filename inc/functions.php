@@ -252,14 +252,29 @@ function eyeon_get_rrule_occurrences($rrule_string, $upcoming_only = false) {
   return $dates;
 }
 
+function eyeon_sort_custom_dates($custom_dates) {
+  if (empty($custom_dates) || !is_array($custom_dates)) return [];
+  $valid = [];
+  $empty = [];
+  foreach ($custom_dates as $cd) {
+    if (!empty($cd['date'])) {
+      $valid[] = $cd;
+    } else {
+      $empty[] = $cd;
+    }
+  }
+  usort($valid, function($a, $b) {
+    return strcmp($a['date'], $b['date']);
+  });
+  return array_merge($valid, $empty);
+}
+
 function eyeon_get_upcoming_custom_date($custom_dates) {
   if (empty($custom_dates) || !is_array($custom_dates)) return null;
   $now = new DateTime('now', wp_timezone());
   $today = $now->format('Y-m-d');
-  usort($custom_dates, function($a, $b) {
-    return strcmp($a['date'], $b['date']);
-  });
-  foreach ($custom_dates as $cd) {
+  $sorted = eyeon_sort_custom_dates($custom_dates);
+  foreach ($sorted as $cd) {
     if (!empty($cd['date']) && $cd['date'] >= $today) {
       return $cd;
     }

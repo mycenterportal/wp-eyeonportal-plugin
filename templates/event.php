@@ -6,7 +6,7 @@ $formatted_end_time = eyeon_format_time($mycenterevent['end_time']);
 $date_display = isset($mycenterevent['single_page_date_display']) ? $mycenterevent['single_page_date_display'] : null;
 $time_display = isset($mycenterevent['single_page_time_display']) ? $mycenterevent['single_page_time_display'] : null;
 $event_type = isset($mycenterevent['event_type']) ? $mycenterevent['event_type'] : 'onetime';
-$custom_dates = isset($mycenterevent['custom_dates']) ? $mycenterevent['custom_dates'] : [];
+$custom_dates = isset($mycenterevent['custom_dates']) ? eyeon_sort_custom_dates($mycenterevent['custom_dates']) : [];
 $show_time = ($time_display === 'show' && !$mycenterevent['is_all_day_event']);
 
 $event_dates_list = [];

@@ -77,6 +77,79 @@ jQuery(document).ready(function($) {
 
   var todayDate = getTimezoneDate();
 
+  function getTodayDateString() {
+    const d = getTimezoneDate();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function getCustomListPageDisplay(event) {
+    const dateDisplay = event.list_page_date_display;
+    const showTimeSetting = event.list_page_time_display === 'show' && !event.is_all_day_event;
+
+    if (!dateDisplay || dateDisplay === 'hide') {
+      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+    }
+
+    const customDates = (event.custom_dates || [])
+      .filter(cd => cd.date && cd.date !== '')
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (customDates.length === 0) {
+      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+    }
+
+    const today = getTodayDateString();
+    let displaySlots = [];
+    let extraCount = 0;
+
+    if (dateDisplay === 'allDates') {
+      displaySlots = customDates;
+      extraCount = customDates.length - 1;
+    } else if (dateDisplay === 'allUpcoming') {
+      displaySlots = customDates.filter(cd => cd.date >= today);
+      extraCount = Math.max(0, displaySlots.length - 1);
+    } else if (dateDisplay === 'upcoming') {
+      const upcoming = customDates.find(cd => cd.date >= today);
+      if (!upcoming) {
+        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+      }
+      displaySlots = [upcoming];
+      extraCount = 0;
+    } else {
+      const upcoming = customDates.find(cd => cd.date >= today);
+      if (!upcoming) {
+        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+      }
+      displaySlots = [upcoming];
+      extraCount = 0;
+    }
+
+    if (displaySlots.length === 0) {
+      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+    }
+
+    const first = displaySlots[0];
+    let dateText = eyeonFormatDate(first.date);
+    if (extraCount > 0) {
+      dateText += ` (+${extraCount})`;
+    }
+
+    const timeStart = showTimeSetting && first.start_time ? first.start_time : null;
+    const timeEnd = showTimeSetting && first.end_time ? first.end_time : null;
+    const showTime = !!(timeStart && timeEnd);
+
+    return {
+      showDate: true,
+      showTime,
+      dateText,
+      timeStart,
+      timeEnd,
+    };
+  }
+
   function fetch_events(force_refresh = false) {
     $.ajax({
       url: EYEON.ajaxurl+'?api=<?= MCD_API_EVENTS ?>',
@@ -208,6 +281,7 @@ jQuery(document).ready(function($) {
     if (event.event_type === 'custom' && event.custom_dates && event.custom_dates.length > 0) {
       const validDates = event.custom_dates
         .filter(cd => cd.date && cd.date !== '')
+        .sort((a, b) => a.date.localeCompare(b.date))
         .map(cd => ({
           date: new Date(cd.date + ' ' + (cd.start_time || '00:00')),
           start_time: cd.start_time,
@@ -267,23 +341,32 @@ jQuery(document).ready(function($) {
 
     if( events.length > 0 ) {
       events.forEach(event => {
-        const showDate = event.list_page_date_display && event.list_page_date_display !== 'hide';
-        const showTime = event.list_page_time_display === 'show' && !event.is_all_day_event;
+        let showDate = event.list_page_date_display && event.list_page_date_display !== 'hide';
+        let showTime = event.list_page_time_display === 'show' && !event.is_all_day_event;
 
         let dateHtml = '';
-        if (showDate) {
-          if (event.list_page_date_display === 'dateRange') {
-            dateHtml = `<span>${event.formatted_start_date} - ${event.formatted_end_date}</span>`;
-          } else {
-            dateHtml = `<span>${event.datesStr}</span>`;
-          }
-        }
-
         let timeStartVal = event.start_time;
         let timeEndVal = event.end_time;
-        if (event.event_type === 'custom' && event.upcoming_custom_time) {
-          timeStartVal = event.upcoming_custom_time.start_time;
-          timeEndVal = event.upcoming_custom_time.end_time;
+
+        if (event.event_type === 'custom') {
+          const display = getCustomListPageDisplay(event);
+          showDate = display.showDate;
+          showTime = display.showTime;
+          if (display.showDate && display.dateText) {
+            dateHtml = `<span>${display.dateText}</span>`;
+          }
+          if (display.showTime) {
+            timeStartVal = display.timeStart;
+            timeEndVal = display.timeEnd;
+          }
+        } else {
+          if (showDate) {
+            if (event.list_page_date_display === 'dateRange') {
+              dateHtml = `<span>${event.formatted_start_date} - ${event.formatted_end_date}</span>`;
+            } else {
+              dateHtml = `<span>${event.datesStr}</span>`;
+            }
+          }
         }
 
         const eventItem = $(`
