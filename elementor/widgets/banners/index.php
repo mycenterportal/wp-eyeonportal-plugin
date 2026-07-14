@@ -36,7 +36,7 @@ class EyeOn_Banner_Widget extends \Elementor\Widget_Base {
     $response = mcd_api_data(MCD_API_BANNERS);
     $bannersResp = $response['data'];
     $options = array();
-    if(isset($bannersResp) && isset($bannersResp['items']) & count($bannersResp['items'])>0 ) {
+    if ( is_array( $bannersResp ) && ! empty( $bannersResp['items'] ) ) {
       foreach( $bannersResp['items'] as $banner ) {
         $options[$banner['id']] = $banner['name'];
       }

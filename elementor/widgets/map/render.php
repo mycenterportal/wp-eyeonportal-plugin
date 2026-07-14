@@ -74,8 +74,8 @@ if($selected_store_id) {
   var appProps = {
     config: baseProps.config || {},
     webApiURI: baseProps.webApiURI || '',
-    // cachedMapApiResponse: cachedMapApiResponse,
-    // onNewMapApiResponse: onNewMapApiResponse
+    cachedMapApiResponse: cachedMapApiResponse,
+    onNewMapApiResponse: onNewMapApiResponse
   };
   
   // Attach the complete props object to the root element

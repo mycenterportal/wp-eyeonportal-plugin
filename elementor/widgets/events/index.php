@@ -36,11 +36,11 @@ class EyeOn_Events_Widget extends \Elementor\Widget_Base {
 
   private function get_categories_from_api() {
     $response = mcd_api_data(MCD_API_EVENTS.'/categories');
-    $eventCategoriesResp = $response['data'];
+    $eventCategoriesResp = $response['data'] ?? null;
     $options = array(
       0 => 'All',
     );
-    if( isset($eventCategoriesResp['items']) & count($eventCategoriesResp['items'])>0 ) {
+    if ( is_array( $eventCategoriesResp ) && ! empty( $eventCategoriesResp['items'] ) ) {
       foreach( $eventCategoriesResp['items'] as $category ) {
         $options[$category['id']] = $category['title'];
       }

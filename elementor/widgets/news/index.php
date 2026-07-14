@@ -35,11 +35,11 @@ class EyeOn_News_Widget extends \Elementor\Widget_Base {
 
   private function get_categories_from_api() {
     $response = mcd_api_data(MCD_API_NEWS.'/categories');
-    $categoriesResp = $response['data'];
+    $categoriesResp = $response['data'] ?? null;
     $options = array(
       0 => 'All',
     );
-    if( isset($categoriesResp['items']) & count($categoriesResp['items'])>0 ) {
+    if ( is_array( $categoriesResp ) && ! empty( $categoriesResp['items'] ) ) {
       foreach( $categoriesResp['items'] as $category ) {
         $options[$category['id']] = $category['name'];
       }
