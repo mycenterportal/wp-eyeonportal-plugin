@@ -3,13 +3,13 @@
 Plugin Name: EyeOn Portal
 Plugin URI: https://eyeonllc.com/
 Description: Show Deals, Stores & Events of a Center from EyeOn Portal.
-Version: 1.0.38
+Version: 1.0.39
 Author: EyeOn LLC
 Author URI: https://eyeonllc.com/
 Licence: GPLv2 or later
 */
 
-defined('THREEJS_MAP_VERSION')          OR define('THREEJS_MAP_VERSION', '1.1.30');
+defined('THREEJS_MAP_VERSION')          OR define('THREEJS_MAP_VERSION', '1.1.32');
 defined('THREEJS_MAP_API_RESPONSE_KEY') OR define('THREEJS_MAP_API_RESPONSE_KEY', 'eyeon_map_api_response');
 
 require_once __DIR__ . '/vendor/autoload.php';
