@@ -240,11 +240,29 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 				}
 			}
 
+			$visitor_id = isset( $_POST['visitor_id'] ) ? sanitize_text_field( wp_unslash( $_POST['visitor_id'] ) ) : '';
+
+			$client_ip = '';
+			if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+				$forwarded = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) );
+				$parts     = explode( ',', $forwarded );
+				$client_ip = trim( $parts[0] );
+			} elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+				$client_ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
+			}
+
+			$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] )
+				? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) )
+				: '';
+
 			$result = mcd_api_post(
 				MCD_API_CHAT,
 				array(
-					'message' => mb_substr( $message, 0, 500 ),
-					'history' => $history,
+					'message'    => mb_substr( $message, 0, 500 ),
+					'history'    => $history,
+					'visitor_id' => mb_substr( $visitor_id, 0, 64 ),
+					'client_ip'  => mb_substr( $client_ip, 0, 45 ),
+					'user_agent' => mb_substr( $user_agent, 0, 500 ),
 				)
 			);
 

@@ -213,6 +213,45 @@
     return 'eyeon_chatbot_v1_' + centerId;
   }
 
+  function visitorStorageKey() {
+    return storageKey() + '_visitor';
+  }
+
+  function getOrCreateVisitorId() {
+    try {
+      if (!window.localStorage) {
+        return getSessionVisitorId();
+      }
+      var existing = localStorage.getItem(visitorStorageKey());
+      if (existing) {
+        return existing;
+      }
+
+      var id = createVisitorId();
+      localStorage.setItem(visitorStorageKey(), id);
+      return id;
+    } catch (e) {
+      return getSessionVisitorId();
+    }
+  }
+
+  var sessionVisitorId = '';
+
+  function createVisitorId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0;
+      var v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  function getSessionVisitorId() {
+    if (!sessionVisitorId) {
+      sessionVisitorId = createVisitorId();
+    }
+    return sessionVisitorId;
+  }
+
   function panelStorageKey() {
     return storageKey() + '_panel';
   }
@@ -596,6 +635,7 @@
         nonce: nonce,
         message: message,
         history_json: JSON.stringify(trimHistoryForApi().slice(0, -1)),
+        visitor_id: getOrCreateVisitorId(),
       },
     });
   }
