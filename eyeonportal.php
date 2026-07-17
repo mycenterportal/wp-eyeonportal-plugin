@@ -74,11 +74,9 @@ defined('MCD_API_CHAT')             OR define( 'MCD_API_CHAT', '/v1/chat' );
 defined('MCP_API_LINKS')			      OR define( 'MCP_API_LINKS', '/v1/links' );
 
 defined('RESTAURANTS_CATEGORY_ID')	OR define( 'RESTAURANTS_CATEGORY_ID', '4' );
-defined('ONGOING_EVENT_CATEGORY_ID') OR define( 'ONGOING_EVENT_CATEGORY_ID', 999999 );
 
 defined('EYEON_API_SESSION_TOKEN') OR define('EYEON_API_SESSION_TOKEN', 'eyeon_api_session_token');
 defined('EYEON_API_SESSION_TOKEN_EXPIRE') OR define('EYEON_API_SESSION_TOKEN_EXPIRE', 15);
-
 
 add_theme_support( 'title-tag' );
 
@@ -103,5 +101,5 @@ if ( is_admin() ) {
 	require_once MCD_PLUGIN_PATH . 'elementor/RegisterWidgets.php';
 // }
 
-
 // require_once MCD_PLUGIN_PATH . 'inc/delete-db-rows/DeleteDBRows.php';
+
