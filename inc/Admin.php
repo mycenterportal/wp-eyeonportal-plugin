@@ -29,10 +29,15 @@ function mcd_pages_list() {
 }
 
 // add admin stylesheets and scripts here
-function mcd_admin_style() {
-	mcd_include_css('admin-style', 'inc/admin/assets/css/style.css');
+function mcd_admin_assets() {
+	if ( ! on_mcd_plugin_page() ) {
+		return;
+	}
+
+	mcd_include_css( 'admin-style', 'inc/admin/assets/css/style.css' );
+	mcd_include_js( 'admin-general-settings', 'inc/admin/assets/js/general-settings.js', true );
 }
-add_action('admin_enqueue_scripts', 'mcd_admin_style');
+add_action( 'admin_enqueue_scripts', 'mcd_admin_assets' );
 
 // show admin notice error to install Redux Framework plugin first
 function general_admin_notice() {

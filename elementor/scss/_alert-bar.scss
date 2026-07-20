@@ -1,0 +1,20 @@
+.eyeon-alert-bar {
+  .alert-bar-message {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .alert-bar-message--placeholder {
+    border: 1px dashed rgba(0, 0, 0, 0.25);
+    opacity: 0.85;
+  }
+
+  .alert-bar-message__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+}

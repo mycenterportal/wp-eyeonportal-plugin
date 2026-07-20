@@ -2,6 +2,58 @@
 	display: none !important;
 }
 
+.eyeon-api-token-field {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 560px;
+}
+
+.eyeon-api-token-field input.eyeon-api-token-input {
+	flex: 1;
+	min-width: 240px;
+}
+
+.eyeon-api-token-toggle,
+.eyeon-api-token-copy {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	height: 36px;
+	padding: 0;
+}
+
+.eyeon-api-token-copy.is-copied {
+	border-color: #00a32a;
+	color: #00a32a;
+}
+
+.eyeon-env-badge {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	vertical-align: middle;
+}
+
+.eyeon-env-badge--dev {
+	background: #6c757d;
+	color: #fff;
+}
+
+.eyeon-env-badge--stage {
+	background: #ffc107;
+	color: #212529;
+}
+
+.eyeon-env-badge--prod {
+	background: #dc3545;
+	color: #fff;
+}
+
 #mcd_settings-mcp_stores_categories {
 	position: absolute;
 	right: 0;

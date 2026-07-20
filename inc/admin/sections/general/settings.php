@@ -1,6 +1,21 @@
 <?php defined( 'ABSPATH' ) || exit;
 
-$center = eyeon_get_center();
+$center    = eyeon_get_center();
+$api_token = isset( $mcd_settings['api_access_token'] ) ? $mcd_settings['api_access_token'] : '';
+
+$center_desc = '';
+if ( $center && ! empty( $center['id'] ) && ! empty( $center['name'] ) ) {
+	$center_desc = sprintf(
+		'#%1$d - %2$s',
+		(int) $center['id'],
+		esc_html( $center['name'] )
+	);
+
+	$environment_badge = eyeon_get_api_token_environment_badge_html( $api_token );
+	if ( $environment_badge ) {
+		$center_desc .= ' ' . $environment_badge;
+	}
+}
 
 Redux::set_section(
 	$opt_name,
@@ -11,11 +26,12 @@ Redux::set_section(
 		'fields' => array(
 			array(
 				'id' => 'api_access_token',
-				'type' => 'text',
+				'type' => 'password',
 				'title' => __( 'API Access Token', EYEON_NAMESPACE ),
-				'default' => isset($mcd_settings['api_access_token']) ? $mcd_settings['api_access_token'] : '',
-				'desc' => __( $center ? '#'.$center['id'].' - '.$center['name']: '', EYEON_NAMESPACE ),
-        'ajax_save' => false,
+				'default' => $api_token,
+				'desc' => $center_desc,
+				'class' => 'eyeon-api-token-input',
+				'ajax_save' => false,
 			),
 			array(
 				'id' => 'default_page_width',

@@ -100,6 +100,54 @@ function eyeon_get_center() {
   return $response['data'];
 }
 
+function eyeon_get_api_token_environment( $token ) {
+	if ( empty( $token ) || ! is_string( $token ) ) {
+		return null;
+	}
+
+	if ( strpos( $token, 'dev_' ) === 0 ) {
+		return 'dev';
+	}
+
+	if ( strpos( $token, 'stage_' ) === 0 ) {
+		return 'stage';
+	}
+
+	if ( strpos( $token, 'prod_' ) === 0 ) {
+		return 'prod';
+	}
+
+	return null;
+}
+
+function eyeon_get_api_token_environment_label( $token ) {
+	switch ( eyeon_get_api_token_environment( $token ) ) {
+		case 'prod':
+			return 'Production';
+		case 'stage':
+			return 'Staging';
+		case 'dev':
+			return 'Development';
+		default:
+			return null;
+	}
+}
+
+function eyeon_get_api_token_environment_badge_html( $token ) {
+	$environment = eyeon_get_api_token_environment( $token );
+	$label       = eyeon_get_api_token_environment_label( $token );
+
+	if ( ! $environment || ! $label ) {
+		return '';
+	}
+
+	return sprintf(
+		'<span class="eyeon-env-badge eyeon-env-badge--%1$s">%2$s</span>',
+		esc_attr( $environment ),
+		esc_html( $label )
+	);
+}
+
 function eyeon_is_chatbot_enabled() {
   $center = eyeon_get_center();
   return ! empty( $center['chatbot_enabled'] );

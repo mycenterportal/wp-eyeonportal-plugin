@@ -100,6 +100,9 @@ function register_eyeon_widgets( $widgets_manager ) {
   require_once plugin_dir_path( __FILE__).'widgets/center-hours/index.php';
   $widgets_manager->register( new \EyeOn_Center_Hours_Widget() );
 
+  require_once plugin_dir_path( __FILE__).'widgets/alert-bar/index.php';
+  $widgets_manager->register( new \EyeOn_Alert_Bar_Widget() );
+
   require_once plugin_dir_path( __FILE__).'widgets/banners/index.php';
   $widgets_manager->register( new \EyeOn_Banner_Widget() );
 
