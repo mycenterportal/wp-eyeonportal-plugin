@@ -275,8 +275,26 @@ function mcd_current_theme_name() {
 }
 
 function eyeon_format_date($date) {
-	$time = date('M j, Y', strtotime($date));
-	return $time;
+	if (empty($date)) {
+		return '';
+	}
+	if ($date instanceof DateTimeInterface) {
+		$utc = (clone $date)->setTimezone(new DateTimeZone('UTC'));
+		return $utc->format('M j, Y');
+	}
+	$trimmed = trim((string) $date);
+	if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trimmed)) {
+		$dt = DateTime::createFromFormat('!Y-m-d', $trimmed, new DateTimeZone('UTC'));
+		return $dt ? $dt->format('M j, Y') : $trimmed;
+	}
+	return date('M j, Y', strtotime($date));
+}
+
+function eyeon_rrule_occurrence_calendar_date($occurrence) {
+	if (!$occurrence instanceof DateTimeInterface) {
+		return '';
+	}
+	return (clone $occurrence)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d');
 }
 
 function eyeon_format_time($time) {

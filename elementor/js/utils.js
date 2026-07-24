@@ -9,9 +9,15 @@ function eyeonFormatTime(timeString) {
   return timeString;
 }
 
-function eyeonFormatDate(dateString = null) {
-  if (dateString) return moment(dateString).format('MMM D, YYYY');
-  return moment().format('MMM D, YYYY');
+function eyeonFormatDate(dateInput = null) {
+  if (!dateInput) return moment().format('MMM D, YYYY');
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return moment.utc(trimmed, 'YYYY-MM-DD').format('MMM D, YYYY');
+    }
+  }
+  return moment.utc(dateInput).format('MMM D, YYYY');
 }
 
 function getResponsiveBreakpoints() {

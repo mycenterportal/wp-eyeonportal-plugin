@@ -16,7 +16,7 @@ if ($date_display === 'upcoming') {
     $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], true);
     if (!empty($occurrences)) {
       $event_dates_list[] = [
-        'date' => $occurrences[0]->format('Y-m-d'),
+        'date' => eyeon_rrule_occurrence_calendar_date($occurrences[0]),
         'start_time' => $mycenterevent['start_time'],
         'end_time' => $mycenterevent['end_time'],
       ];
@@ -54,7 +54,7 @@ if ($date_display === 'upcoming') {
     $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], true);
     foreach ($occurrences as $occ) {
       $event_dates_list[] = [
-        'date' => $occ->format('Y-m-d'),
+        'date' => eyeon_rrule_occurrence_calendar_date($occ),
         'start_time' => $mycenterevent['start_time'],
         'end_time' => $mycenterevent['end_time'],
       ];
@@ -80,7 +80,7 @@ if ($date_display === 'upcoming') {
     $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], false);
     foreach ($occurrences as $occ) {
       $event_dates_list[] = [
-        'date' => $occ->format('Y-m-d'),
+        'date' => eyeon_rrule_occurrence_calendar_date($occ),
         'start_time' => $mycenterevent['start_time'],
         'end_time' => $mycenterevent['end_time'],
       ];

@@ -304,25 +304,35 @@ jQuery(document).ready(function($) {
         new Date(todayDate.getTime() + 365 * 24 * 60 * 60 * 1000)
       );
 
-      let event_duration_in_minutes = 0;
-      if(!event.is_all_day_event) {
-        event_duration_in_minutes = getMinutesBetween(event.end_time, event.start_time);
+      if (event.is_all_day_event) {
+        const todayStr = moment.utc().format('YYYY-MM-DD');
+        const upcomingRaw = occurrences.find(function (occ) {
+          return moment.utc(occ).format('YYYY-MM-DD') >= todayStr;
+        });
+        if (upcomingRaw) {
+          const occDateStr = moment.utc(upcomingRaw).format('YYYY-MM-DD');
+          event.upcoming_date = event.start_date > occDateStr ? event.start_date : occDateStr;
+        } else if (event.start_date >= todayStr) {
+          event.upcoming_date = event.start_date;
+        } else {
+          event.upcoming_date = todayStr;
+        }
       } else {
-        event_duration_in_minutes = 60*24-1;
-      }
-      var occurrencesInTimezone = occurrences.map(date => {
-        const timezoneOffsetInMinutes = date.getTimezoneOffset();
-        return addMinutesToDate(date, timezoneOffsetInMinutes+event_duration_in_minutes)
-      });
+        let event_duration_in_minutes = getMinutesBetween(event.end_time, event.start_time);
+        var occurrencesInTimezone = occurrences.map(date => {
+          const timezoneOffsetInMinutes = date.getTimezoneOffset();
+          return addMinutesToDate(date, timezoneOffsetInMinutes + event_duration_in_minutes)
+        });
 
-      upcomingOccurrence = occurrencesInTimezone.find(function (occurrence) {
-        return occurrence >= todayDate;
-      });
+        upcomingOccurrence = occurrencesInTimezone.find(function (occurrence) {
+          return occurrence >= todayDate;
+        });
 
-      if (upcomingOccurrence) {
-        event.upcoming_date = tempStartDate > upcomingOccurrence ? tempStartDate : upcomingOccurrence;
-      } else {
-        event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
+        if (upcomingOccurrence) {
+          event.upcoming_date = tempStartDate > upcomingOccurrence ? tempStartDate : upcomingOccurrence;
+        } else {
+          event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
+        }
       }
     } else {
       event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
