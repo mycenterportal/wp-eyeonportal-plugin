@@ -44,6 +44,7 @@ When implementing a feature in this session:
 | WordPress | `wp-eyeonportal-plugin` | WordPress/Elementor public sites (ongoing platform) |
 | Kiosk | `kiosk-electron` | Touch kiosk + media-display (ads) for centers |
 | Map library | `threejs-map` | React/Three.js `@eyeon/threejs-map`; renders center maps from SVG floors + mapit2 data |
+| Helpdesk | `eyeon-helpdesk` | Internal support ticketing; clients submit/reply via web or email |
 
 ## Public Website Platforms (coexistence)
 
@@ -73,6 +74,7 @@ Centers may use **either or both** public website stacks long term:
 | `threejs-map` | React / Three.js (npm lib) | `/Users/angrej/work/eyeon/eyeonportal/threejs-map/` | Published as `@eyeon/threejs-map`. Converts SVG floor plans into interactive 3D maps; loads retailer/amenity assignments from mapit2 APIs. Consumed by admin-portal Center Map editor, center-website Center Map section, center-website-runtime, kiosk-electron, and WP plugin bundled releases. |
 | `wp-eyeonportal-plugin` | WordPress / PHP / Elementor | `/Users/angrej/Sites/wp-eyeonportal/wp-content/plugins/eyeonportal/` | WordPress plugin serving center data from `web-app-backend` via Elementor widgets. First-class public platform alongside center-website-runtime. Map widget loads prebuilt JS/CSS from `assets/map-releases/` synced by threejs-map CI. |
 | `eks-iac` | Terraform + K8s YAML | `/Users/angrej/work/eyeon/eyeonportal/eks_iac/` | Deploys EyeOn apps to AWS EKS (`SAS-IT-LABS`, `us-east-2`). Staging and prod namespaces. |
+| `eyeon-helpdesk` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/eyeon-helpdesk/` | Standalone support ticketing app. Internal team manages tickets at `/admin/*`; clients submit via `/contact` or reply by email. Own Postgres DB (dbmate). Deployed on **AWS Amplify** (not EKS). |
 
 ## App Boundaries (default ports)
 
@@ -81,6 +83,7 @@ Centers may use **either or both** public website stacks long term:
 - Public APIs (token protected): `localhost:3002` (`web-app-backend`)
 - Center builder app: `localhost:3004` (`center-website`)
 - Center runtime app: `localhost:3005` (`center-website/runtime`)
+- Helpdesk app: `localhost:3006` (`eyeon-helpdesk`; note: `package.json` dev script currently uses `3004` — use `3006` locally if center-website is also running)
 
 ## Auth
 
@@ -118,6 +121,65 @@ Centers may use **either or both** public website stacks long term:
 | Map library UI/behavior change | `threejs-map` (publish npm) + bump `@eyeon/threejs-map` in admin-portal, center-website, kiosk-electron; runtime inherits center-website section dep; WP gets bundled assets on threejs-map release |
 | API token scopes | `admin-portal` + `admin-portal-backend` + `web-app-backend` |
 | EKS / deploy config | `eks_iac` + affected app repo |
+| Helpdesk feature / schema | `eyeon-helpdesk` only (standalone DB + Next.js API routes) |
+
+## EyeOn Helpdesk (`eyeon-helpdesk`)
+
+Standalone Next.js 15 ticketing system for EyeOn client support. **Not**
+connected to the shared `admin-portal-backend` Postgres schema — it owns its
+own database and migrations.
+
+### Purpose
+
+- **Internal team** (support agents, leads, superadmins) log in at `/admin/login`
+  and manage tickets, customers, companies, and settings.
+- **Clients** (mall/center contacts) report issues or request work via the
+  public `/contact` form, or by replying to ticket notification emails.
+- Email replies are ingested via an AWS SES inbound webhook and appear in the
+  ticket conversation thread alongside web replies.
+
+### Architecture
+
+| Layer | Details |
+|---|---|
+| UI | Next.js App Router — admin at `/admin/*`, public at `/contact` and `/ticket/[ticketNumber]` |
+| API | Next.js Route Handlers under `/api/admin/*` (JWT cookie) and `/api/public/*` (Turnstile on writes) |
+| Auth | JWT in `eyeon_admin_auth_token` httpOnly cookie; roles: `superadmin`, `support_lead`, `support_agent` |
+| Database | Dedicated PostgreSQL; migrations in `eyeon-helpdesk/db/migrations/` via **dbmate** (not admin-portal-backend) |
+| Email | AWS SES outbound (notifications) + inbound SNS webhook at `/api/webhooks/ses/incoming` |
+| Storage | S3 for ticket attachments |
+| AI (optional) | OpenAI for categorization, spam detection, contact extraction, reply analysis |
+
+### Session handling
+
+When the admin JWT expires while a user is still in the browser, API calls
+return `401`. Client-side `adminFetch` / Axios interceptors redirect to
+`/admin/login` on any `/api/admin/*` 401 (excluding `/api/admin/auth/*`).
+
+### Deploy (AWS Amplify)
+
+- CI/CD: `amplify.yml` — build, run `db:prod:up` migrations, Teams webhook on success/failure.
+- Branches: `main` → prod, `staging` → stage.
+- **Not** deployed via `eks_iac` today. See cost notes below.
+
+### Amplify vs EKS (helpdesk)
+
+Other EyeOn apps share an existing EKS cluster (`eks_iac`). Helpdesk is on
+Amplify as a cost/experiment choice. Rule of thumb:
+
+- **Stay on Amplify** if traffic is low (internal team + occasional client
+  form/email), you want zero cluster ops, and build minutes stay within free/low
+  tier. Amplify Hosting + SSR is often **$5–30/mo** for a small internal app.
+- **Move to EKS** if the cluster already has spare node capacity (marginal cost
+  ≈ one small Deployment + Service — often cheaper than paying Amplify build +
+  SSR separately at scale), you need VPC-private DB access patterns aligned with
+  other services, or you want one ingress/ALB and unified observability.
+- EKS **fixed** costs (~$73/mo control plane + nodes) are already sunk if the
+  cluster runs either way; adding helpdesk to EKS is mainly incremental pod
+  memory/CPU, not a second platform fee.
+
+Decision: keep Amplify while validating product fit and traffic; revisit EKS
+when consolidating deploys or if Amplify build/hosting bills exceed ~$40–50/mo.
 
 ## Center Map (`threejs-map`)
 

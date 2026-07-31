@@ -204,30 +204,32 @@ jQuery(document).ready(function($) {
 
     events = events.map(parseAndFindUpcoming);
 
+    function upcomingTimestamp(value) {
+      if (!value) return NaN;
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          return new Date(trimmed + ' 00:00:00').getTime();
+        }
+      }
+      const parsed = new Date(value);
+      return parsed.getTime();
+    }
+
     events.sort(function (a, b) {
       if (a.event_type === 'ongoing' && b.event_type !== 'ongoing') return 1;
       if (a.event_type !== 'ongoing' && b.event_type === 'ongoing') return -1;
 
-      if (a.upcoming_date && b.upcoming_date) {
-        if (a.upcoming_date > b.upcoming_date) {
-          return 1;
-        } else if (a.upcoming_date < b.upcoming_date) {
-          return -1;
-        } else {
-          return 0;
-        }
-      } else if (a.upcoming_date) {
+      const ta = upcomingTimestamp(a.upcoming_date);
+      const tb = upcomingTimestamp(b.upcoming_date);
+      if (!isNaN(ta) && !isNaN(tb)) {
+        return ta - tb;
+      } else if (!isNaN(ta)) {
         return -1;
-      } else if (b.upcoming_date) {
+      } else if (!isNaN(tb)) {
         return 1;
       }
-
-      // Sort by start_date and start_time
-      // var startDateA = getTimezoneDate(new Date(a.start_date + ' ' + (a.is_all_day_event ? '00:00:00' : a.start_time)));
-      // var startDateB = getTimezoneDate(new Date(b.start_date + ' ' + (b.is_all_day_event ? '00:00:00' : b.start_time)));
-
-      // if (startDateA > startDateB) return 1;
-      // if (startDateA < startDateB) return -1;
 
       return 0;
     });
@@ -305,17 +307,18 @@ jQuery(document).ready(function($) {
       );
 
       if (event.is_all_day_event) {
-        const todayStr = moment.utc().format('YYYY-MM-DD');
+        const todayStr = getTodayDateString();
         const upcomingRaw = occurrences.find(function (occ) {
           return moment.utc(occ).format('YYYY-MM-DD') >= todayStr;
         });
         if (upcomingRaw) {
           const occDateStr = moment.utc(upcomingRaw).format('YYYY-MM-DD');
-          event.upcoming_date = event.start_date > occDateStr ? event.start_date : occDateStr;
+          const upcomingStr = event.start_date > occDateStr ? event.start_date : occDateStr;
+          event.upcoming_date = new Date(upcomingStr + ' 00:00:00');
         } else if (event.start_date >= todayStr) {
-          event.upcoming_date = event.start_date;
+          event.upcoming_date = new Date(event.start_date + ' 00:00:00');
         } else {
-          event.upcoming_date = todayStr;
+          event.upcoming_date = new Date(todayStr + ' 00:00:00');
         }
       } else {
         let event_duration_in_minutes = getMinutesBetween(event.end_time, event.start_time);
