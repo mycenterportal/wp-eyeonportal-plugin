@@ -146,6 +146,16 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 			);
 		}
 
+		private function get_link_bases() {
+			return array(
+				'deal'   => mcd_single_page_url( 'mycenterdeal' ),
+				'store'  => mcd_single_page_url( 'mycenterstore' ),
+				'event'  => mcd_single_page_url( 'mycenterevent' ),
+				'career' => mcd_single_page_url( 'mycentercareer' ),
+				'news'   => mcd_single_page_url( 'mycenterblogpost' ),
+			);
+		}
+
 		function maybe_enqueue() {
 			if ( is_admin() || ! $this->is_enabled() ) {
 				return;
@@ -156,12 +166,6 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 
 			$center    = function_exists( 'eyeon_get_center' ) ? eyeon_get_center() : array();
 			$center_id = ! empty( $center['id'] ) ? (int) $center['id'] : 0;
-			$stores_page = $this->get_stores_page_link();
-			$page_links  = array();
-
-			if ( $stores_page ) {
-				$page_links['stores'] = $stores_page;
-			}
 
 			wp_localize_script(
 				'eyeon-chatbot',
@@ -173,14 +177,6 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 					'welcomeMessage' => $this->get_setting( 'chatbot_welcome_message', 'Hi! Ask me anything about our center.' ),
 					'offlineMessage' => $this->get_setting( 'chatbot_offline_message', 'Sorry, the assistant is temporarily unavailable.' ),
 					'position'       => $this->get_position(),
-					'linkBases'      => array(
-						'deal'   => mcd_single_page_url( 'mycenterdeal' ),
-						'store'  => mcd_single_page_url( 'mycenterstore' ),
-						'event'  => mcd_single_page_url( 'mycenterevent' ),
-						'career' => mcd_single_page_url( 'mycentercareer' ),
-						'news'   => mcd_single_page_url( 'mycenterblogpost' ),
-					),
-					'pageLinks'      => $page_links,
 				)
 			);
 		}
@@ -290,6 +286,7 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 				'visitor_id' => mb_substr( $visitor_id, 0, 64 ),
 				'client_ip'  => mb_substr( $client_ip, 0, 45 ),
 				'user_agent' => mb_substr( $user_agent, 0, 500 ),
+				'link_bases' => $this->get_link_bases(),
 			);
 
 			$stores_page = $this->get_stores_page_link();
@@ -297,6 +294,7 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 				$payload['page_links'] = array(
 					'stores' => array(
 						'title' => $stores_page['title'],
+						'url'   => $stores_page['url'],
 					),
 				);
 			}

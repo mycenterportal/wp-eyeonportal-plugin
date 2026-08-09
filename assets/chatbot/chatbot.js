@@ -358,19 +358,30 @@
   }
 
   function appendRichText($container, text) {
-    var itemPattern = /\[([^\]]+)\]\((deal|store|event|career|news|page):([^)]+)\)/g;
+    // Stored replies use absolute URLs: [Title](https://...).
+    // Legacy typed links (type:slug) are shown as plain text labels.
+    var urlPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+    var legacyPattern = /\[([^\]]+)\]\((deal|store|event|career|news|page):([^)]+)\)/g;
     var phonePattern = /\b(\d{3}\.\d{3}\.\d{4})\b/g;
     var tokens = [];
     var match;
 
-    while ((match = itemPattern.exec(text)) !== null) {
+    while ((match = urlPattern.exec(text)) !== null) {
       tokens.push({
         start: match.index,
         end: match.index + match[0].length,
-        kind: 'item',
+        kind: 'url',
         label: match[1],
-        itemType: match[2],
-        slug: match[3],
+        href: match[2],
+      });
+    }
+
+    while ((match = legacyPattern.exec(text)) !== null) {
+      tokens.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        kind: 'legacy',
+        label: match[1],
       });
     }
 
@@ -395,20 +406,17 @@
       if (token.start > cursor) {
         $container.append(document.createTextNode(text.slice(cursor, token.start)));
       }
-      if (token.kind === 'item') {
-        var href = buildItemUrl(token.itemType, token.slug);
-        if (href) {
-          $container.append(
-            $('<a></a>')
-              .addClass('eyeon-chatbot__message-link')
-              .attr('href', href)
-              .attr('target', '_blank')
-              .attr('rel', 'noopener noreferrer')
-              .text(token.label)
-          );
-        } else {
-          $container.append(document.createTextNode(token.label));
-        }
+      if (token.kind === 'url') {
+        $container.append(
+          $('<a></a>')
+            .addClass('eyeon-chatbot__message-link')
+            .attr('href', token.href)
+            .attr('target', '_blank')
+            .attr('rel', 'noopener noreferrer')
+            .text(token.label)
+        );
+      } else if (token.kind === 'legacy') {
+        $container.append(document.createTextNode(token.label));
       } else if (token.kind === 'phone') {
         var telHref = buildPhoneTelHref(token.phone);
         if (telHref) {
@@ -428,28 +436,6 @@
     if (cursor < text.length) {
       $container.append(document.createTextNode(text.slice(cursor)));
     }
-  }
-
-  function buildItemUrl(type, slug) {
-    if (type === 'page') {
-      return buildPageUrl(slug);
-    }
-
-    var bases = EYEON_CHATBOT.linkBases || {};
-    var base = bases[type];
-    if (!base || !slug) {
-      return '';
-    }
-    return base + encodeURIComponent(slug);
-  }
-
-  function buildPageUrl(key) {
-    var pageLinks = EYEON_CHATBOT.pageLinks || {};
-    var page = pageLinks[key];
-    if (!page || !page.url) {
-      return '';
-    }
-    return page.url;
   }
 
   var UNORDERED_LIST_PATTERN = /^[-*+]\s+(.+)$/;
