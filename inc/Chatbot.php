@@ -124,6 +124,28 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 			return implode( '; ', $parts ) . ';';
 		}
 
+		private function get_stores_page_link() {
+			$page_id = $this->get_setting( 'stores_listing_page', 0 );
+			if ( empty( $page_id ) ) {
+				return null;
+			}
+
+			$url = get_permalink( (int) $page_id );
+			if ( ! $url ) {
+				return null;
+			}
+
+			$title = get_the_title( (int) $page_id );
+			if ( ! is_string( $title ) || '' === trim( $title ) ) {
+				$title = 'Stores';
+			}
+
+			return array(
+				'url'   => esc_url_raw( $url ),
+				'title' => sanitize_text_field( $title ),
+			);
+		}
+
 		function maybe_enqueue() {
 			if ( is_admin() || ! $this->is_enabled() ) {
 				return;
@@ -134,6 +156,12 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 
 			$center    = function_exists( 'eyeon_get_center' ) ? eyeon_get_center() : array();
 			$center_id = ! empty( $center['id'] ) ? (int) $center['id'] : 0;
+			$stores_page = $this->get_stores_page_link();
+			$page_links  = array();
+
+			if ( $stores_page ) {
+				$page_links['stores'] = $stores_page;
+			}
 
 			wp_localize_script(
 				'eyeon-chatbot',
@@ -152,6 +180,7 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 						'career' => mcd_single_page_url( 'mycentercareer' ),
 						'news'   => mcd_single_page_url( 'mycenterblogpost' ),
 					),
+					'pageLinks'      => $page_links,
 				)
 			);
 		}
@@ -255,15 +284,26 @@ if ( ! class_exists( 'EyeOnChatbot' ) ) {
 				? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) )
 				: '';
 
+			$payload = array(
+				'message'    => mb_substr( $message, 0, 500 ),
+				'history'    => $history,
+				'visitor_id' => mb_substr( $visitor_id, 0, 64 ),
+				'client_ip'  => mb_substr( $client_ip, 0, 45 ),
+				'user_agent' => mb_substr( $user_agent, 0, 500 ),
+			);
+
+			$stores_page = $this->get_stores_page_link();
+			if ( $stores_page ) {
+				$payload['page_links'] = array(
+					'stores' => array(
+						'title' => $stores_page['title'],
+					),
+				);
+			}
+
 			$result = mcd_api_post(
 				MCD_API_CHAT,
-				array(
-					'message'    => mb_substr( $message, 0, 500 ),
-					'history'    => $history,
-					'visitor_id' => mb_substr( $visitor_id, 0, 64 ),
-					'client_ip'  => mb_substr( $client_ip, 0, 45 ),
-					'user_agent' => mb_substr( $user_agent, 0, 500 ),
-				)
+				$payload
 			);
 
 			if ( $result['status'] === 200 && ! empty( $result['data']['reply'] ) ) {

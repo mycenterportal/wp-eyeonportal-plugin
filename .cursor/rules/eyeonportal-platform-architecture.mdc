@@ -245,6 +245,10 @@ The WP plugin is an **ongoing first-class platform**, not a deprecated stack.
   `center-website-runtime` reads.
 - Manage Website / magic link / redirect changes → `admin-portal` +
   `admin-portal-backend` + `center-website` together.
+- Center-website domain data (websites, pages, sections, forms, settings,
+  header/footer, SEO, templates, domains, webhook keys) lives in the shared
+  Postgres schema owned by `admin-portal-backend`. The builder must not own
+  schema evolution (no local migrations).
 
 ### Website lifecycle (1:1 with `centers`)
 
@@ -257,36 +261,106 @@ via an explicit "Build Website" action, never on read or page-load flows.
 |---|---|
 | `GET /v1/websites/by-center/:center_id` | Read-only; `404` if no website yet |
 | `POST /v1/websites/by-center/:center_id` | Explicit init; idempotent; seeds defaults |
+| `DELETE /v1/websites/by-center/:center_id` | Delete Website (Settings → Advanced) |
 
-Builder proxies: `GET/POST /eyeon/api/v1/websites/by-center/:centerId`.
+Builder proxies: `GET/POST/DELETE /eyeon/api/v1/websites/by-center/:centerId`.
 
 After Build Website, `seedWebsiteDefaults` (center-website) seeds via builder
 write APIs: default page tree (Home + locked pages per module — Stores, Dine,
 Map, Deals, Events, News, Careers), default sections from `section-registry.ts`,
-header/footer menus in `website_settings`, and a preview test subdomain
-(`is_preview`). Banners global colors live in `web_slider_settings` (`center_id`)
-via admin-portal, not `website_settings`. Re-invocations only fill empty slots;
-user edits are never overwritten. `ensureForCenter` resolves `website_id` lazily
-but does **not** seed.
+single-page templates (`store-single`, `deal-single`, etc.), header/footer menus
+in `website_settings`, and a preview test subdomain (`is_preview`). Banners
+global colors live in `web_slider_settings` (`center_id`) via admin-portal, not
+`website_settings`. Re-invocations only fill empty slots; user edits are never
+overwritten. `ensureForCenter` resolves `website_id` lazily but does **not** seed.
+
+**Delete Website** (`WebsiteDeletionService` in admin-portal-backend) removes the
+`websites` row (cascading pages, domains, forms, galleries, webhooks, etc.),
+`website_settings` / `website_settings_published`, page SEO rows, and
+center-website media (`media.type_id = 10`) from Postgres plus the center's S3
+prefix under that media type. It does **not** delete the `centers` row,
+`web_slider_settings`, `blog_posts` (admin-portal News), or non–type-10 media.
 
 **UI gate:** `center-website/src/components/builder/ProjectShell.tsx` — on mount
 read-only fetch; `404` shows "not initialized" + Build Website button (builder
 children not mounted); Build Website POSTs then redirects to `/websites/:id/preview`.
 "Manage Website" from admin-portal lands at `/websites/:id` (center ID).
 
+### Routing conventions
+
+- Builder UI routes live under `/websites/*`.
+- In `src/app/(admin)/websites/[id]`, `[id]` is the **center ID** from
+  admin-portal — not a separate local project identifier.
+- Center list / switcher: `GET /eyeon/api/v1/centers` via `apiClient`
+  (`limit` / `page` / `sort`; `items[{id,name}]`).
+- Builder writes target `/eyeon/api/*` → admin-portal-backend unified websites
+  surface: `/v1/websites/:websiteId`, `/pages`, `/settings`, `/forms`,
+  `/publish`. Banners palette: `/v1/web_slider/settings/:centerId`.
+- Retired (do not reintroduce): top-level `/v1/website_pages/*`,
+  `/v1/website_settings/*`, `/v1/website_forms/*`, `/v1/website_header/*`,
+  `/v1/website_footer/*`, and local `/projects` routes.
+- Local Next.js routes that remain on purpose: magic-link consume/logout,
+  upload/download, and S3 read proxy (`/api/s3/[...path]`). Authz stays on
+  the backends.
+
+### HTTP / API client layer
+
+Same-origin Axios pattern in both builder and runtime:
+
+| App | Client | Base | Upstream |
+|---|---|---|---|
+| Builder | `apiClient` | `/eyeon/api` | `admin-portal-backend` via `src/app/eyeon/api/[...path]` (session cookies) |
+| Builder | `localApi` | `""` | In-app Next.js routes only (upload, etc.) |
+| Builder | `GET /api/center/:centerId` | local BFF | `web-app-backend` `/v1/center` (+ info); resolves `api_access_token` |
+| Runtime | `apiClient` | `/api/eyeon` | `web-app-backend` GET-only proxy; injects per-center token server-side |
+| Runtime | `runtime-api.ts` | server-only | `web-app-backend` `/v1/runtime/*` via `RUNTIME_SERVICE_SECRET` |
+| Runtime | `localApi` | `""` | Thin BFF (forms/webhooks) → `/v1/runtime/*` |
+
+- Prefer `apiClient` for admin-backend data; use `localApi` only for intentional
+  local routes. Direct `fetch` is for server→external services or streaming/SSE.
+- Builder and runtime have **no direct Postgres access**. Runtime has no AWS
+  credentials either. Preview vs production content is decided by
+  `website_domains.is_preview` (draft vs `*_published` tables). Media via CDN
+  proxy (`/api/eyeon-media/*`); uploads/webhook ingest on `web-app-backend` only.
+- Center **News** module data is `web-app-backend` `/v1/blogs` (not builder
+  `blog_posts`).
+
+### Canonical tables (admin-portal-backend)
+
+| Table | Purpose |
+|---|---|
+| `websites` | One row per `centers.id` (UNIQUE); website metadata |
+| `website_settings` / `website_settings_published` | Theme/header/footer (`header_props`, `footer_props`, fonts, theme) |
+| `web_slider_settings` | Banners global colors (`center_id`) — independent of builder |
+| `website_pages` / `website_pages_published` | Pages |
+| `website_page_sections` / `website_page_sections_published` | Section blocks |
+| `website_forms` / `website_form_submissions` | Forms |
+| `website_seo_settings` / `website_seo_settings_published` | SEO records |
+| `website_page_templates` / `website_page_templates_published` | Page templates |
+| `website_domains` | Hostnames + SSL / preview flags |
+| `website_webhooks_api_keys` | Webhook / public ingestion API keys |
+
+Legacy `center_website_header` / `footer` / `forms` tables were dropped; data
+lives under `website_settings.*_props` and `website_forms*`.
+
 ### Deploy (eks-iac)
 
 Manifests: `eks_iac/K8s/center-website-builder/` and `center-website-runtime/`.
+Deploy tier: `EYEON_ENV` / `NEXT_PUBLIC_EYEON_ENV` (`center-website/src/lib/deploy-env.ts`).
+ECR images: `center-website-builder`, `center-website-runtime`.
+CI: `.github/workflows/build-push-deploy-staging.yml` /
+`build-push-deploy-prod.yml` in `center-website`.
 
-| Tier | Builder host | Runtime test domains |
-|---|---|---|
-| Staging | `builder-staging.eyeonportal.com` | `{slug}-staging.eyeontest.com` |
-| Production | `builder.eyeonportal.com` | `{slug}.eyeontest.com` |
+| Tier | Builder host | Runtime test domains | DB prefix (`website_domains.domain`) |
+|---|---|---|---|
+| Staging | `builder-staging.eyeonportal.com` | `{slug}-staging.eyeontest.com` | `{slug}-staging` |
+| Production | `builder.eyeonportal.com` | `{slug}.eyeontest.com` | `{slug}` |
 
-- Runtime has no `DATABASE_URL`; bootstraps via `web-app-backend` `/v1/runtime/*`
-  using `RUNTIME_SERVICE_SECRET`.
+- Staging and production share parent `eyeontest.com`; the `-staging` infix
+  separates tiers. Wildcard DNS `*.eyeontest.com` covers all centers.
+- Runtime bootstraps via `web-app-backend` `/v1/runtime/*` using
+  `RUNTIME_SERVICE_SECRET` (no direct DB).
 - `web-app-backend` staging needs `TEST_DOMAIN_SUFFIX=eyeontest.com`.
-- Stored `website_domains.domain` prefix: `{slug}-staging` (staging) or `{slug}` (prod).
 - **ALB gotcha:** while prod center-website is not deployed, prod ingress must not
   declare `*.eyeontest.com` or `builder.eyeonportal.com` — a missing backend rule
   returns ALB 503 and blocks staging. See `eks_iac/K8s/ingress-rules/prod-alb/ingress.yaml`.
@@ -298,3 +372,5 @@ When platform boundaries change, update:
 
 - `admin-portal/docs/cursor-rules/eyeonportal-platform-architecture.mdc` (canonical)
 - Run `npm run sync:cursor-rules` from `admin-portal` to propagate
+
+Do **not** keep a parallel architecture doc under sibling `docs/` trees.

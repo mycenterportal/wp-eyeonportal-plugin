@@ -358,7 +358,7 @@
   }
 
   function appendRichText($container, text) {
-    var itemPattern = /\[([^\]]+)\]\((deal|store|event|career|news):([^)]+)\)/g;
+    var itemPattern = /\[([^\]]+)\]\((deal|store|event|career|news|page):([^)]+)\)/g;
     var phonePattern = /\b(\d{3}\.\d{3}\.\d{4})\b/g;
     var tokens = [];
     var match;
@@ -431,12 +431,25 @@
   }
 
   function buildItemUrl(type, slug) {
+    if (type === 'page') {
+      return buildPageUrl(slug);
+    }
+
     var bases = EYEON_CHATBOT.linkBases || {};
     var base = bases[type];
     if (!base || !slug) {
       return '';
     }
     return base + encodeURIComponent(slug);
+  }
+
+  function buildPageUrl(key) {
+    var pageLinks = EYEON_CHATBOT.pageLinks || {};
+    var page = pageLinks[key];
+    if (!page || !page.url) {
+      return '';
+    }
+    return page.url;
   }
 
   var UNORDERED_LIST_PATTERN = /^[-*+]\s+(.+)$/;
