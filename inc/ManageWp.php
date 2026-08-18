@@ -291,19 +291,35 @@ if ( ! class_exists( 'EyeOnManageWp' ) ) {
 		}
 
 		/**
-		 * Keep only the map release version referenced by THREEJS_MAP_VERSION.
+		 * Keep only the map release versions referenced by THREEJS_MAP_VERSION
+		 * and THREEJS_MAP_V2_VERSION.
 		 */
 		private function remove_unused_map_releases_from_plugin_root( $root ) {
-			$map_releases_dir = $root . '/assets/map-releases';
+			$this->prune_map_release_dir(
+				$root . '/assets/map-releases',
+				$root . '/eyeonportal.php',
+				'THREEJS_MAP_VERSION'
+			);
+			$this->prune_map_release_dir(
+				$root . '/assets/map-v2-releases',
+				$root . '/eyeonportal.php',
+				'THREEJS_MAP_V2_VERSION'
+			);
+		}
+
+		/**
+		 * Keep only the active version directory under a map releases folder.
+		 */
+		private function prune_map_release_dir( $map_releases_dir, $plugin_php, $constant_name ) {
 			if ( ! is_dir( $map_releases_dir ) ) {
 				return;
 			}
 
 			$active_version = null;
-			$plugin_php       = $root . '/eyeonportal.php';
 			if ( is_file( $plugin_php ) ) {
 				$content = @file_get_contents( $plugin_php );
-				if ( is_string( $content ) && preg_match( "/OR define\s*\(\s*'THREEJS_MAP_VERSION'\s*,\s*'([^']+)'\s*\)/", $content, $matches ) ) {
+				$pattern = "/OR define\s*\(\s*'" . preg_quote( $constant_name, '/' ) . "'\s*,\s*'([^']+)'\s*\)/";
+				if ( is_string( $content ) && preg_match( $pattern, $content, $matches ) ) {
 					$active_version = $matches[1];
 				}
 			}
@@ -318,7 +334,7 @@ if ( ! class_exists( 'EyeOnManageWp' ) ) {
 			}
 
 			foreach ( $items as $item ) {
-				if ( '.' === $item || '..' === $item ) {
+				if ( '.' === $item || '..' === $item || '.gitkeep' === $item ) {
 					continue;
 				}
 				$path = $map_releases_dir . '/' . $item;

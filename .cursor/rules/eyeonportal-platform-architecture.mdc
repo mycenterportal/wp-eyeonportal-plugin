@@ -43,7 +43,7 @@ When implementing a feature in this session:
 | Runtime | `center-website-runtime` | Serve published/test domains via `web-app-backend` |
 | WordPress | `wp-eyeonportal-plugin` | WordPress/Elementor public sites (ongoing platform) |
 | Kiosk | `kiosk-electron` | Touch kiosk + media-display (ads) for centers |
-| Map library | `threejs-map` | React/Three.js `@eyeon/threejs-map`; renders center maps from SVG floors + mapit2 data |
+| Map library | `threejs-map` | React/Three.js monorepo: `@eyeon/threejs-map` (v1) + `@eyeon/map` (v2); per-center via `centers.map_version` |
 | Helpdesk | `eyeon-helpdesk` | Internal support ticketing; clients submit/reply via web or email |
 
 ## Public Website Platforms (coexistence)
@@ -68,10 +68,10 @@ Centers may use **either or both** public website stacks long term:
 | `admin-portal` | React | `/Users/angrej/work/eyeon/eyeonportal/admin-portal/` | Staff dashboard where users manage mall center data. Generates API access tokens for public apps. "Manage Website" magic-link entry into center-website builder. |
 | `admin-portal-backend` | Node.js (Express) | `/Users/angrej/work/eyeon/eyeonportal/admin-portal-backend/` | Protected business/admin REST API. Owns the shared Postgres schema and all migrations. Consumed by `admin-portal` and `center-website`. |
 | `web-app-backend` | Node.js | `/Users/angrej/work/eyeon/eyeonportal/web-app-backend/` | Public **read-only** API. Same DB via AWS RDS read replica. Serves public apps authenticated with API access tokens (generated in admin-portal by super admin). |
-| `center-website` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/center-website/` | Website builder UI. Calls `admin-portal-backend` via session cookie (`/eyeon/api/*` proxy and `/api/*` route handlers). Staging only; not production yet. **Center Map** section (`centerMap`) renders via `@eyeon/threejs-map`. |
-| `center-website-runtime` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/center-website/runtime/` | Serves test and live domains. Renders websites built in center-website, including the **Center Map** section via shared `@eyeon/threejs-map` `MapBox`. Data via `web-app-backend` `/v1/runtime/*`. |
-| `kiosk-electron` | Electron | `/Users/angrej/work/eyeon/eyeonportal/kiosk-electron/` | Desktop app for Linux/Windows. Two display modes: **kiosk** (touch-interactive) and **media-display** (ads uploaded in admin-portal). Uses API access token. Renders center map via `@eyeon/threejs-map`. |
-| `threejs-map` | React / Three.js (npm lib) | `/Users/angrej/work/eyeon/eyeonportal/threejs-map/` | Published as `@eyeon/threejs-map`. Converts SVG floor plans into interactive 3D maps; loads retailer/amenity assignments from mapit2 APIs. Consumed by admin-portal Center Map editor, center-website Center Map section, center-website-runtime, kiosk-electron, and WP plugin bundled releases. |
+| `center-website` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/center-website/` | Website builder UI. Calls `admin-portal-backend` via session cookie (`/eyeon/api/*` proxy and `/api/*` route handlers). Staging only; not production yet. **Center Map** section (`centerMap`) renders v1 `@eyeon/threejs-map` or v2 `@eyeon/map/viewer` by `map_version`. |
+| `center-website-runtime` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/center-website/runtime/` | Serves test and live domains. Same Center Map section; injects `mapVersion` from runtime context. Data via `web-app-backend` `/v1/runtime/*`. |
+| `kiosk-electron` | Electron | `/Users/angrej/work/eyeon/eyeonportal/kiosk-electron/` | Desktop app for Linux/Windows. Two display modes: **kiosk** (touch-interactive) and **media-display** (ads uploaded in admin-portal). Uses API access token. Renders center map via v1 MapBox or v2 MapViewer by `map_version`. |
+| `threejs-map` | React / Three.js (npm monorepo) | `/Users/angrej/work/eyeon/eyeonportal/threejs-map/` | Publishes `@eyeon/threejs-map` (v1 MapBox + mapit2) and `@eyeon/map` (v2 core/viewer/editor). CI releases packages independently; WP gets `map-releases/` (v1) and `map-v2-releases/` (v2). |
 | `wp-eyeonportal-plugin` | WordPress / PHP / Elementor | `/Users/angrej/Sites/wp-eyeonportal/wp-content/plugins/eyeonportal/` | WordPress plugin serving center data from `web-app-backend` via Elementor widgets. First-class public platform alongside center-website-runtime. Map widget loads prebuilt JS/CSS from `assets/map-releases/` synced by threejs-map CI. |
 | `eks-iac` | Terraform + K8s YAML | `/Users/angrej/work/eyeon/eyeonportal/eks_iac/` | Deploys EyeOn apps to AWS EKS (`SAS-IT-LABS`, `us-east-2`). Staging and prod namespaces. |
 | `eyeon-helpdesk` | Next.js | `/Users/angrej/work/eyeon/eyeonportal/eyeon-helpdesk/` | Standalone support ticketing app. Internal team manages tickets at `/admin/*`; clients submit via `/contact` or reply by email. Own Postgres DB (dbmate). Deployed on **AWS Amplify** (not EKS). |
@@ -118,7 +118,8 @@ Centers may use **either or both** public website stacks long term:
 | Magic link / Manage Website | `admin-portal` + `admin-portal-backend` + `center-website` |
 | Kiosk display feature | `kiosk-electron` + `web-app-backend` (+ admin-portal if staff configures it) |
 | Center map (floors, retailers, amenities, settings) | `threejs-map` + `admin-portal` + `admin-portal-backend` + `web-app-backend`; release bumps consumers (`center-website`, `center-website-runtime`, `kiosk-electron`, WP plugin via CI) |
-| Map library UI/behavior change | `threejs-map` (publish npm) + bump `@eyeon/threejs-map` in admin-portal, center-website, kiosk-electron; runtime inherits center-website section dep; WP gets bundled assets on threejs-map release |
+| Map library UI/behavior change (v1) | `threejs-map` publish `@eyeon/threejs-map` + bump in admin-portal, center-website, kiosk-electron; WP `map-releases/` via CI |
+| Map library UI/behavior change (v2) | `threejs-map` publish `@eyeon/map` + bump in admin-portal, center-website, kiosk-electron; WP `map-v2-releases/` via CI (do not bump v1 as part of v2-only work) |
 | API token scopes | `admin-portal` + `admin-portal-backend` + `web-app-backend` |
 | EKS / deploy config | `eks_iac` + affected app repo |
 | Helpdesk feature / schema | `eyeon-helpdesk` only (standalone DB + Next.js API routes) |
@@ -181,18 +182,27 @@ Amplify as a cost/experiment choice. Rule of thumb:
 Decision: keep Amplify while validating product fit and traffic; revisit EKS
 when consolidating deploys or if Amplify build/hosting bills exceed ~$40–50/mo.
 
-## Center Map (`threejs-map`)
+## Center Map (`threejs-map` monorepo)
 
-`threejs-map` is the shared React library (`@eyeon/threejs-map` on npm) that
-powers interactive center maps across the platform.
+The `threejs-map` repo is an npm workspaces monorepo:
 
-### Data flow
+| Package | Role |
+|---|---|
+| `@eyeon/threejs-map` (1.1.x, frozen major) | **v1** — SVG-driven MapBox + mapit2 APIs |
+| `@eyeon/map` (`./core`, `./viewer`, `./editor`) | **v2** — DB-driven document model, viewer, editor |
+
+Per-center selection: `centers.map_version` (`smallint`, default **2** / New).
+Absent or unknown → v1/Classic (fail-safe). Flipping versions never deletes the
+other technology's data.
+v2 owns S3 objects under `media/map/` only (never `media/mapit/`).
+
+### v1 data flow (unchanged)
 
 1. **SVG floors** — staff upload floor SVG files in admin-portal **Center Map**
    (`CENTER_MAP:FLOORS`). Stored in `mapit2_floors` (S3-backed `svg` key) via
    `admin-portal-backend` `/v1/mapit2/floors`.
 2. **Map configuration** — staff assign retailers, amenities, kiosks, routes,
-   and map settings in admin-portal Center Map (`ROLE: PORTAL`). Writes go to
+   and map settings in admin-portal Center Map (`HOST: PORTAL`). Writes go to
    `mapit2_data`, `mapit2_settings`, `mapit2_responsive`, etc. via
    `admin-portal-backend` `/v1/mapit2/*`.
 3. **Public read** — frontends fetch map data from `web-app-backend`
@@ -200,28 +210,44 @@ powers interactive center maps across the platform.
 4. **Render** — `@eyeon/threejs-map` `MapBox` parses SVG layers, builds 3D
    geometry, and overlays retailer/amenity assignments.
 
+### v2 data flow
+
+1. Designer uploads a **base/outdoor** SVG (optional) + building floor SVGs.
+2. Core importer normalizes geometry into `cm_*` tables; clients edit shapes,
+   assignments, and routes in `@eyeon/map/editor` (admin-portal `/center-map`
+   when `map_version=2`).
+3. **Publish** compiles an immutable JSONB document into `cm_revisions`.
+4. Public read: `web-app-backend` `GET /v1/map/document` (API token).
+5. Render: `@eyeon/map/viewer` (`MapViewer`). WP loads
+   `assets/map-v2-releases/{THREEJS_MAP_V2_VERSION}/`.
+
+Admin API: `/v1/map/*` in `admin-portal-backend`. Converter:
+`POST /v1/map/convert-from-v1` (super-admin) — reads mapit2, writes cm_* only.
+
 ### Consumers
 
 | App | Role / mode | Notes |
 |---|---|---|
-| `admin-portal` | `PORTAL` | Center Map module (`/center-map`) — primary editor for floors + assignments |
-| `center-website` | public section | `CenterMap` section (`src/public/sections/CenterMap`); builder preview proxies map API |
-| `center-website-runtime` | public section | Same `CenterMap` section on published/test domains via shared `section-map` loaders |
-| `kiosk-electron` | kiosk mode | Touch map + amenities; webpack aliases ESM build |
-| `wp-eyeonportal-plugin` | `WP_SITE` | Elementor map widget; loads bundled `main.js` + `main.css` from `assets/map-releases/{version}/` |
+| `admin-portal` | `PORTAL` / v2 editor | `/center-map` routes on `map_version` to v1 MapBox or v2 MapEditor |
+| `center-website` | public section | `CenterMap` lazy-loads v1 MapBox or v2 MapViewer |
+| `center-website-runtime` | public section | Same section; injects `mapVersion` from runtime context |
+| `kiosk-electron` | kiosk mode | Branches on center `map_version`; DISPLAY_APP |
+| `wp-eyeonportal-plugin` | `WEBSITE` | v1 `map-releases/` or v2 `map-v2-releases/` by center `map_version` |
 
 ### Release pipeline
 
-On push to `threejs-map` `main` (version bump required):
+On push to `threejs-map` `main` / `beta`, CI treats packages **independently**:
 
-1. Build library → publish `@eyeon/threejs-map` to npm.
-2. Build `threejs-wp/` wrapper → copy `main.js`, `main.css`, source map to
-   `wp-eyeonportal-plugin` repo at `assets/map-releases/{version}/`.
-3. Commit to `mycenterportal/wp-eyeonportal-plugin` (`ThreeJS Map: {version} [skip ci]`).
+1. Detect which of `@eyeon/threejs-map` / `@eyeon/map` differ from npm.
+2. Release only the bumped package(s) in parallel jobs (build/test/publish).
+3. For each successful non-prerelease publish, sync that generation’s WP assets
+   (`map-releases/{v1}` and/or `map-v2-releases/{v2}`) and bump the matching
+   `THREEJS_MAP_VERSION` / `THREEJS_MAP_V2_VERSION` constant.
+4. Slack: one notification per package that was part of the run (success or fail).
 
-Bump `@eyeon/threejs-map` in admin-portal, center-website, and kiosk-electron
-when adopting a new library version. WP plugin picks up bundled assets
-automatically from the CI push above.
+Bump `@eyeon/map` in admin-portal, center-website, and kiosk-electron when
+adopting a new v2 library version. Bump `@eyeon/threejs-map` only for v1 work
+(do not bump v1 as part of v2-only releases).
 
 ## WordPress Plugin (`wp-eyeonportal-plugin`)
 

@@ -6,11 +6,63 @@ $filtered_settings = array_intersect_key($settings, array_flip([
 $unique_id = uniqid();
 
 $center = eyeon_get_center();
+$map_version = ( is_array( $center ) && isset( $center['map_version'] ) && intval( $center['map_version'] ) === 2 ) ? 2 : 1;
+
+if ( $map_version === 2 ) {
+  wp_enqueue_script( 'eyeon-map-v2' );
+  wp_enqueue_style( 'eyeon-map-v2' );
+
+  $eyeonMapProps = array(
+    'webApiURI' => rest_url( 'eyeon-portal/map' ),
+    'host' => 'WEBSITE',
+    'centerId' => intval( $center['id'] ),
+  );
+
+  $selected_store_id = ( isset( $_GET['r'] ) && ! empty( $_GET['r'] ) ) ? $_GET['r'] : null;
+  if ( $selected_store_id ) {
+    $eyeonMapProps['selectedRetailerId'] = intval( $selected_store_id );
+  }
+  ?>
+
+<div id="eyeon-map-<?= $unique_id ?>" class="eyeon-map">
+  <div class="eyeon-wrapper">
+      <div id="root"></div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function() {
+  var mapId = 'eyeon-map-<?= $unique_id ?>';
+  var rootElement = document.querySelector('#' + mapId + ' #root');
+
+  if (!rootElement) return;
+
+  var appProps = <?= json_encode( $eyeonMapProps ) ?>;
+
+  rootElement.eyeonMapProps = appProps;
+
+  var event = new CustomEvent('eyeon:map:props:ready', {
+    detail: {
+      mapId: mapId,
+      props: appProps,
+      element: rootElement
+    }
+  });
+  rootElement.dispatchEvent(event);
+})();
+</script>
+  <?php
+  return;
+}
+
+wp_enqueue_script( 'eyeon-map' );
+wp_enqueue_style( 'eyeon-map' );
 
 $mapboxProps = array(
   'config' => Array(
     'CENTER_ID' => intval($center['id']),
-    'ROLE' => 'WP_SITE',
+    'HOST' => 'WEBSITE',
     'IMAGE_PROXY_URL' => site_url().'/index.php?eyeonmedia=',
   ),
   'webApiURI' => rest_url('eyeon-portal/map'),
