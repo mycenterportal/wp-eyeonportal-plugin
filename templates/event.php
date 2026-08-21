@@ -9,11 +9,26 @@ $event_type = isset($mycenterevent['event_type']) ? $mycenterevent['event_type']
 $custom_dates = isset($mycenterevent['custom_dates']) ? eyeon_sort_custom_dates($mycenterevent['custom_dates']) : [];
 $show_time = ($time_display === 'show' && !$mycenterevent['is_all_day_event']);
 
+$center_timezone = null;
+if (!empty($mycenterevent['center']['timezone'])) {
+  $center_timezone = $mycenterevent['center']['timezone'];
+}
+
+$has_recurrence = eyeon_event_has_recurrence($mycenterevent);
+$is_all_day = !empty($mycenterevent['is_all_day_event']);
+
 $event_dates_list = [];
 
 if ($date_display === 'upcoming') {
-  if ($event_type === 'recurring' && !empty($mycenterevent['repeat_rrule'])) {
-    $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], true);
+  if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
+    $occurrences = eyeon_get_rrule_occurrences(
+      $mycenterevent['repeat_rrule'],
+      true,
+      $center_timezone,
+      $mycenterevent['end_time'] ?? null,
+      $is_all_day,
+      $mycenterevent['start_date'] ?? null
+    );
     if (!empty($occurrences)) {
       $event_dates_list[] = [
         'date' => eyeon_rrule_occurrence_calendar_date($occurrences[0]),
@@ -28,7 +43,7 @@ if ($date_display === 'upcoming') {
       ];
     }
   } elseif ($event_type === 'custom') {
-    $upcoming = eyeon_get_upcoming_custom_date($custom_dates);
+    $upcoming = eyeon_get_upcoming_custom_date($custom_dates, $center_timezone);
     if ($upcoming) {
       $event_dates_list[] = $upcoming;
     } else {
@@ -50,8 +65,15 @@ if ($date_display === 'upcoming') {
 } elseif ($date_display === 'show') {
   $event_dates_list = 'show';
 } elseif ($date_display === 'allUpcoming') {
-  if ($event_type === 'recurring' && !empty($mycenterevent['repeat_rrule'])) {
-    $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], true);
+  if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
+    $occurrences = eyeon_get_rrule_occurrences(
+      $mycenterevent['repeat_rrule'],
+      true,
+      $center_timezone,
+      $mycenterevent['end_time'] ?? null,
+      $is_all_day,
+      $mycenterevent['start_date'] ?? null
+    );
     foreach ($occurrences as $occ) {
       $event_dates_list[] = [
         'date' => eyeon_rrule_occurrence_calendar_date($occ),
@@ -60,10 +82,13 @@ if ($date_display === 'upcoming') {
       ];
     }
   } elseif ($event_type === 'custom') {
-    $now = new DateTime('now', wp_timezone());
-    $today = $now->format('Y-m-d');
+    $now = eyeon_center_now($center_timezone);
+    $today = $now['date'];
+    $now_time = $now['time'];
     foreach ($custom_dates as $cd) {
-      if (!empty($cd['date']) && $cd['date'] >= $today) {
+      if (empty($cd['date'])) continue;
+      $cd_all_day = empty($cd['end_time']) && empty($cd['start_time']);
+      if (eyeon_is_occurrence_upcoming($cd['date'], $cd['end_time'] ?? null, $today, $now_time, $cd_all_day)) {
         $event_dates_list[] = $cd;
       }
     }
@@ -76,8 +101,15 @@ if ($date_display === 'upcoming') {
     ];
   }
 } elseif ($date_display === 'allDates') {
-  if ($event_type === 'recurring' && !empty($mycenterevent['repeat_rrule'])) {
-    $occurrences = eyeon_get_rrule_occurrences($mycenterevent['repeat_rrule'], false);
+  if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
+    $occurrences = eyeon_get_rrule_occurrences(
+      $mycenterevent['repeat_rrule'],
+      false,
+      $center_timezone,
+      $mycenterevent['end_time'] ?? null,
+      $is_all_day,
+      $mycenterevent['start_date'] ?? null
+    );
     foreach ($occurrences as $occ) {
       $event_dates_list[] = [
         'date' => eyeon_rrule_occurrence_calendar_date($occ),
@@ -155,15 +187,27 @@ if( isset($mycenterevent['next']) ) {
           <?php if( $date_display && $date_display !== 'hide' ) : ?>
             <div class="mcd-event-date-time">
               <?php if( $event_dates_list === 'range' ) : ?>
-                <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= eyeon_format_date($mycenterevent['start_date']) ?> - <?= eyeon_format_date($mycenterevent['end_date']) ?></span>
+                <?php
+                  $range_str = eyeon_format_date($mycenterevent['start_date']);
+                  if (!empty($mycenterevent['end_date']) && $mycenterevent['end_date'] !== $mycenterevent['start_date']) {
+                    $end_fmt = eyeon_format_date($mycenterevent['end_date']);
+                    if ($end_fmt !== '') {
+                      $range_str .= ' - ' . $end_fmt;
+                    }
+                  }
+                ?>
+                <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $range_str ?></span>
                 <?php if( $show_time ) : ?>
                   <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= $formatted_start_time ?> - <?= $formatted_end_time ?></span>
                 <?php endif; ?>
               <?php elseif( $event_dates_list === 'show' ) : ?>
                 <?php
                   $show_date_str = eyeon_format_date($mycenterevent['start_date']);
-                  if ($mycenterevent['end_date'] && $mycenterevent['start_date'] !== $mycenterevent['end_date']) {
-                    $show_date_str .= ' - ' . eyeon_format_date($mycenterevent['end_date']);
+                  if (!empty($mycenterevent['end_date']) && $mycenterevent['start_date'] !== $mycenterevent['end_date']) {
+                    $end_fmt = eyeon_format_date($mycenterevent['end_date']);
+                    if ($end_fmt !== '') {
+                      $show_date_str .= ' - ' . $end_fmt;
+                    }
                   }
                 ?>
                 <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $show_date_str ?></span>
@@ -198,7 +242,7 @@ if( isset($mycenterevent['next']) ) {
 							<span>Add to Calendar</span>
 							<span class="date_format">DD/MM/YYYY</span>
 							<span class="start"><?= date('d/m/Y', strtotime($mycenterevent['start_date'])) ?> <?= (!empty($formatted_start_time)?$formatted_start_time:'12:00 am') ?></span>
-							<span class="end"><?= date('d/m/Y', strtotime($mycenterevent['end_date'])) ?> <?= (!empty($formatted_end_time)?$formatted_end_time:'11:59 pm') ?></span>
+							<span class="end"><?= date('d/m/Y', strtotime($mycenterevent['end_date'] ?: $mycenterevent['start_date'])) ?> <?= (!empty($formatted_end_time)?$formatted_end_time:'11:59 pm') ?></span>
 							<?php if( $mycenterevent['is_all_day_event'] ) : ?>
                 <span class="all_day_event">true</span>
 							<?php endif; ?>
@@ -242,4 +286,3 @@ window.addeventasync = function(){
     });
 };
 </script>
-
