@@ -56,36 +56,168 @@ jQuery(document).ready(function($) {
 
   const event_category = parseInt(settings.event_category);
 
-  function getTimezoneDate(date = null) {
-    const today = date ? date : new Date();
-    return new Date(today.toLocaleString('en-US', { timeZone: wpTimezone }));
+  /**
+   * Resolve "now" as calendar date + wall-clock time in an IANA timezone.
+   * Intl resolves DST from the zone database at this instant — no offset math.
+   */
+  function getCenterNow(timezone) {
+    const tz = timezone || wpTimezone || 'UTC';
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).formatToParts(new Date());
+
+      const get = (type) => {
+        const part = parts.find((p) => p.type === type);
+        return part ? part.value : '00';
+      };
+
+      // en-CA hour12:false can emit "24" for midnight — normalize to "00"
+      let hour = get('hour');
+      if (hour === '24') hour = '00';
+
+      return {
+        date: `${get('year')}-${get('month')}-${get('day')}`,
+        time: `${hour}:${get('minute')}:${get('second')}`,
+      };
+    } catch (e) {
+      // Invalid IANA zone (or fixed-offset WP string) — fall back to UTC calendar date
+      const now = new Date();
+      return {
+        date: moment.utc(now).format('YYYY-MM-DD'),
+        time: moment.utc(now).format('HH:mm:ss'),
+      };
+    }
   }
 
-  function addMinutesToDate(date, minutes) {
-    const newDate = new Date(date.getTime());
-    newDate.setTime(newDate.getTime() + minutes * 60 * 1000);
-    return newDate;
+  function eventHasRecurrence(event) {
+    return event.event_type === 'recurring'
+      || (event.is_repeat_event && event.repeat_rrule && event.repeat_rrule !== '');
   }
 
-  function getMinutesBetween(time1, time2) {
-    const date1 = new Date(`1970-01-01T${time1}Z`);
-    const date2 = new Date(`1970-01-01T${time2}Z`);
-    const diffInMs = Math.abs(date2 - date1);
-    const diffInMinutes = diffInMs / (1000 * 60);
-    return diffInMinutes;
+  function normalizeTime(time) {
+    if (!time) return null;
+    const trimmed = String(time).trim();
+    if (!trimmed) return null;
+    // HH:mm → HH:mm:00 for lexicographic compare with HH:mm:ss
+    if (/^\d{1,2}:\d{2}$/.test(trimmed)) return trimmed + ':00';
+    return trimmed;
   }
 
-  var todayDate = getTimezoneDate();
-
-  function getTodayDateString() {
-    const d = getTimezoneDate();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  /**
+   * True when an occurrence on `occDate` is still upcoming relative to center-local now.
+   * All-day events count as upcoming for the whole calendar day.
+   */
+  function isOccurrenceUpcoming(occDate, endTime, today, nowTime, isAllDay) {
+    if (occDate > today) return true;
+    if (occDate < today) return false;
+    if (isAllDay) return true;
+    const end = normalizeTime(endTime) || '23:59:59';
+    return end >= nowTime;
   }
 
-  function getCustomListPageDisplay(event) {
+  function occurrenceCalendarDate(occ) {
+    return moment.utc(occ).format('YYYY-MM-DD');
+  }
+
+  function calendarDateToUtcMs(dateStr) {
+    if (!dateStr || typeof dateStr !== 'string') return NaN;
+    const trimmed = dateStr.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return NaN;
+    const [y, m, d] = trimmed.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  }
+
+  /**
+   * Build the list of date slots used for list-page display modes.
+   * Each slot: { date: 'YYYY-MM-DD', start_time, end_time }
+   */
+  function buildEventDateSlots(event) {
+    const centerTz = event.center_timezone || wpTimezone;
+    const now = getCenterNow(centerTz);
+    const today = now.date;
+    const isAllDay = !!event.is_all_day_event;
+    const startTime = event.start_time || null;
+    const endTime = event.end_time || null;
+
+    if (event.event_type === 'custom' && event.custom_dates && event.custom_dates.length > 0) {
+      return (event.custom_dates || [])
+        .filter((cd) => cd.date && cd.date !== '')
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((cd) => ({
+          date: cd.date,
+          start_time: cd.start_time || startTime,
+          end_time: cd.end_time || endTime,
+        }));
+    }
+
+    if (eventHasRecurrence(event)) {
+      try {
+        const rule = rrule.RRule.fromString(event.repeat_rrule);
+        // Bound window: 2 days before today → 365 days ahead (UTC midnight anchors)
+        const windowStart = new Date(Date.UTC(
+          Number(today.slice(0, 4)),
+          Number(today.slice(5, 7)) - 1,
+          Number(today.slice(8, 10)) - 2
+        ));
+        const windowEnd = new Date(Date.UTC(
+          Number(today.slice(0, 4)),
+          Number(today.slice(5, 7)) - 1,
+          Number(today.slice(8, 10)) + 365
+        ));
+        const occurrences = rule.between(windowStart, windowEnd);
+        const slots = [];
+        const seen = {};
+        occurrences.forEach(function (occ) {
+          const dateStr = occurrenceCalendarDate(occ);
+          if (seen[dateStr]) return;
+          // Respect event.start_date as a lower bound
+          if (event.start_date && dateStr < event.start_date) return;
+          seen[dateStr] = true;
+          slots.push({
+            date: dateStr,
+            start_time: startTime,
+            end_time: endTime,
+          });
+        });
+        return slots;
+      } catch (e) {
+        // fall through to single-slot
+      }
+    }
+
+    // one-time / ongoing / fallback: single slot from start_date
+    if (event.start_date) {
+      return [{
+        date: event.start_date,
+        start_time: startTime,
+        end_time: endTime,
+      }];
+    }
+    return [];
+  }
+
+  function findUpcomingSlot(slots, event) {
+    const centerTz = event.center_timezone || wpTimezone;
+    const now = getCenterNow(centerTz);
+    const isAllDay = !!event.is_all_day_event;
+    return slots.find((slot) =>
+      isOccurrenceUpcoming(slot.date, slot.end_time, now.date, now.time, isAllDay)
+    ) || null;
+  }
+
+  /**
+   * Shared list-page date/time display resolver for every event type.
+   * Modes: hide | dateRange | show | upcoming | allUpcoming | allDates
+   */
+  function getListPageDisplay(event) {
     const dateDisplay = event.list_page_date_display;
     const showTimeSetting = event.list_page_time_display === 'show' && !event.is_all_day_event;
 
@@ -93,45 +225,71 @@ jQuery(document).ready(function($) {
       return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
     }
 
-    const customDates = (event.custom_dates || [])
-      .filter(cd => cd.date && cd.date !== '')
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    if (customDates.length === 0) {
-      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+    if (dateDisplay === 'dateRange') {
+      const startFmt = eyeonFormatDate(event.start_date);
+      const endFmt = eyeonFormatDate(event.end_date);
+      let dateText = startFmt;
+      if (endFmt && event.end_date && event.end_date !== event.start_date) {
+        dateText = `${startFmt} - ${endFmt}`;
+      }
+      return {
+        showDate: !!startFmt,
+        showTime: showTimeSetting && !!(event.start_time && event.end_time),
+        dateText: dateText || null,
+        timeStart: event.start_time || null,
+        timeEnd: event.end_time || null,
+      };
     }
 
-    const today = getTodayDateString();
-    let displaySlots = [];
-    let extraCount = 0;
+    if (dateDisplay === 'show') {
+      const startFmt = eyeonFormatDate(event.start_date);
+      let dateText = startFmt;
+      if (event.end_date && event.end_date !== event.start_date) {
+        const endFmt = eyeonFormatDate(event.end_date);
+        if (endFmt) dateText = `${startFmt} - ${endFmt}`;
+      }
+      return {
+        showDate: !!startFmt,
+        showTime: showTimeSetting && !!(event.start_time && event.end_time),
+        dateText: dateText || null,
+        timeStart: event.start_time || null,
+        timeEnd: event.end_time || null,
+      };
+    }
 
+    const slots = event._dateSlots || [];
+    const centerTz = event.center_timezone || wpTimezone;
+    const now = getCenterNow(centerTz);
+    const isAllDay = !!event.is_all_day_event;
+
+    let displaySlots = [];
     if (dateDisplay === 'allDates') {
-      displaySlots = customDates;
-      extraCount = customDates.length - 1;
+      displaySlots = slots;
     } else if (dateDisplay === 'allUpcoming') {
-      displaySlots = customDates.filter(cd => cd.date >= today);
-      extraCount = Math.max(0, displaySlots.length - 1);
-    } else if (dateDisplay === 'upcoming') {
-      const upcoming = customDates.find(cd => cd.date >= today);
-      if (!upcoming) {
-        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
-      }
-      displaySlots = [upcoming];
-      extraCount = 0;
+      displaySlots = slots.filter((slot) =>
+        isOccurrenceUpcoming(slot.date, slot.end_time, now.date, now.time, isAllDay)
+      );
     } else {
-      const upcoming = customDates.find(cd => cd.date >= today);
-      if (!upcoming) {
-        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
-      }
-      displaySlots = [upcoming];
-      extraCount = 0;
+      // upcoming (default for any other mode)
+      const upcoming = findUpcomingSlot(slots, event);
+      displaySlots = upcoming ? [upcoming] : [];
     }
 
     if (displaySlots.length === 0) {
-      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+      // Fall back to start_date so the card still shows something meaningful
+      if (event.start_date) {
+        displaySlots = [{
+          date: event.start_date,
+          start_time: event.start_time,
+          end_time: event.end_time,
+        }];
+      } else {
+        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+      }
     }
 
     const first = displaySlots[0];
+    const extraCount = Math.max(0, displaySlots.length - 1);
     let dateText = eyeonFormatDate(first.date);
     if (extraCount > 0) {
       dateText += ` (+${extraCount})`;
@@ -139,11 +297,10 @@ jQuery(document).ready(function($) {
 
     const timeStart = showTimeSetting && first.start_time ? first.start_time : null;
     const timeEnd = showTimeSetting && first.end_time ? first.end_time : null;
-    const showTime = !!(timeStart && timeEnd);
 
     return {
-      showDate: true,
-      showTime,
+      showDate: !!dateText,
+      showTime: !!(timeStart && timeEnd),
       dateText,
       timeStart,
       timeEnd,
@@ -204,25 +361,12 @@ jQuery(document).ready(function($) {
 
     events = events.map(parseAndFindUpcoming);
 
-    function upcomingTimestamp(value) {
-      if (!value) return NaN;
-      if (value instanceof Date) return value.getTime();
-      if (typeof value === 'string') {
-        const trimmed = value.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-          return new Date(trimmed + ' 00:00:00').getTime();
-        }
-      }
-      const parsed = new Date(value);
-      return parsed.getTime();
-    }
-
     events.sort(function (a, b) {
       if (a.event_type === 'ongoing' && b.event_type !== 'ongoing') return 1;
       if (a.event_type !== 'ongoing' && b.event_type === 'ongoing') return -1;
 
-      const ta = upcomingTimestamp(a.upcoming_date);
-      const tb = upcomingTimestamp(b.upcoming_date);
+      const ta = calendarDateToUtcMs(a.upcoming_date);
+      const tb = calendarDateToUtcMs(b.upcoming_date);
       if (!isNaN(ta) && !isNaN(tb)) {
         return ta - tb;
       } else if (!isNaN(ta)) {
@@ -277,68 +421,22 @@ jQuery(document).ready(function($) {
   }
   
   function parseAndFindUpcoming(event) {
-    var upcomingOccurrence = null;
-    var tempStartDate = new Date(event.start_date + ' ' + (event.is_all_day_event ? '00:00:00' : event.start_time));
+    const slots = buildEventDateSlots(event);
+    event._dateSlots = slots;
 
-    if (event.event_type === 'custom' && event.custom_dates && event.custom_dates.length > 0) {
-      const validDates = event.custom_dates
-        .filter(cd => cd.date && cd.date !== '')
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .map(cd => ({
-          date: new Date(cd.date + ' ' + (cd.start_time || '00:00')),
-          start_time: cd.start_time,
-          end_time: cd.end_time
-        }))
-        .sort((a, b) => a.date - b.date);
+    const upcoming = findUpcomingSlot(slots, event);
+    // Do NOT clamp to today — report the event's own start_date when nothing is upcoming
+    // (matches single-event page semantics)
+    event.upcoming_date = upcoming
+      ? upcoming.date
+      : (event.start_date || null);
 
-      const upcomingCustom = validDates.find(cd => cd.date >= todayDate);
-      if (upcomingCustom) {
-        event.upcoming_date = upcomingCustom.date;
-        event.upcoming_custom_time = upcomingCustom;
-      } else {
-        event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
-      }
-    } else if (event.is_repeat_event && event.repeat_rrule && event.repeat_rrule !== '') {
-      var rule = rrule.RRule.fromString(event.repeat_rrule);
-
-      var occurrences = rule.between(
-        new Date(todayDate.getTime() - 2 * 24 * 60 * 60 * 1000),
-        new Date(todayDate.getTime() + 365 * 24 * 60 * 60 * 1000)
-      );
-
-      if (event.is_all_day_event) {
-        const todayStr = getTodayDateString();
-        const upcomingRaw = occurrences.find(function (occ) {
-          return moment.utc(occ).format('YYYY-MM-DD') >= todayStr;
-        });
-        if (upcomingRaw) {
-          const occDateStr = moment.utc(upcomingRaw).format('YYYY-MM-DD');
-          const upcomingStr = event.start_date > occDateStr ? event.start_date : occDateStr;
-          event.upcoming_date = new Date(upcomingStr + ' 00:00:00');
-        } else if (event.start_date >= todayStr) {
-          event.upcoming_date = new Date(event.start_date + ' 00:00:00');
-        } else {
-          event.upcoming_date = new Date(todayStr + ' 00:00:00');
-        }
-      } else {
-        let event_duration_in_minutes = getMinutesBetween(event.end_time, event.start_time);
-        var occurrencesInTimezone = occurrences.map(date => {
-          const timezoneOffsetInMinutes = date.getTimezoneOffset();
-          return addMinutesToDate(date, timezoneOffsetInMinutes + event_duration_in_minutes)
-        });
-
-        upcomingOccurrence = occurrencesInTimezone.find(function (occurrence) {
-          return occurrence >= todayDate;
-        });
-
-        if (upcomingOccurrence) {
-          event.upcoming_date = tempStartDate > upcomingOccurrence ? tempStartDate : upcomingOccurrence;
-        } else {
-          event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
-        }
-      }
-    } else {
-      event.upcoming_date = tempStartDate > todayDate ? tempStartDate : todayDate;
+    if (upcoming) {
+      event.upcoming_custom_time = {
+        date: upcoming.date,
+        start_time: upcoming.start_time,
+        end_time: upcoming.end_time,
+      };
     }
 
     event.datesStr = eyeonFormatDate(event.upcoming_date);
@@ -354,33 +452,12 @@ jQuery(document).ready(function($) {
 
     if( events.length > 0 ) {
       events.forEach(event => {
-        let showDate = event.list_page_date_display && event.list_page_date_display !== 'hide';
-        let showTime = event.list_page_time_display === 'show' && !event.is_all_day_event;
-
-        let dateHtml = '';
-        let timeStartVal = event.start_time;
-        let timeEndVal = event.end_time;
-
-        if (event.event_type === 'custom') {
-          const display = getCustomListPageDisplay(event);
-          showDate = display.showDate;
-          showTime = display.showTime;
-          if (display.showDate && display.dateText) {
-            dateHtml = `<span>${display.dateText}</span>`;
-          }
-          if (display.showTime) {
-            timeStartVal = display.timeStart;
-            timeEndVal = display.timeEnd;
-          }
-        } else {
-          if (showDate) {
-            if (event.list_page_date_display === 'dateRange') {
-              dateHtml = `<span>${event.formatted_start_date} - ${event.formatted_end_date}</span>`;
-            } else {
-              dateHtml = `<span>${event.datesStr}</span>`;
-            }
-          }
-        }
+        const display = getListPageDisplay(event);
+        const showDate = display.showDate;
+        const showTime = display.showTime;
+        const dateHtml = showDate && display.dateText ? `<span>${display.dateText}</span>` : '';
+        const timeStartVal = display.timeStart;
+        const timeEndVal = display.timeEnd;
 
         const eventItem = $(`
           <a href="${event.event_url?event.event_url:`<?= mcd_single_page_url('mycenterevent') ?>${event.slug}`}" class="event event-${event.id}" ${(event.event_url && settings.external_event_new_tab)?'target="_blank"':''}>

@@ -10,9 +10,12 @@ function eyeonFormatTime(timeString) {
 }
 
 function eyeonFormatDate(dateInput = null) {
-  if (!dateInput) return moment().format('MMM D, YYYY');
+  if (dateInput === null || dateInput === undefined || dateInput === '') {
+    return '';
+  }
   if (typeof dateInput === 'string') {
     const trimmed = dateInput.trim();
+    if (!trimmed) return '';
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       return moment.utc(trimmed, 'YYYY-MM-DD').format('MMM D, YYYY');
     }

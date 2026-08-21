@@ -302,18 +302,118 @@ function eyeon_format_time($time) {
 	return $time;
 }
 
-function eyeon_get_rrule_occurrences($rrule_string, $upcoming_only = false) {
+/**
+ * Resolve an IANA timezone for center-local "now" comparisons.
+ * Falls back to WP site timezone, then UTC.
+ */
+function eyeon_resolve_timezone($timezone = null) {
+  if (!empty($timezone)) {
+    try {
+      return new DateTimeZone($timezone);
+    } catch (\Exception $e) {
+      // fall through
+    }
+  }
+  try {
+    return wp_timezone();
+  } catch (\Exception $e) {
+    return new DateTimeZone('UTC');
+  }
+}
+
+/**
+ * Center-local calendar date + wall-clock time as strings (Y-m-d / H:i:s).
+ * DST is resolved by PHP's timezone database at this instant.
+ */
+function eyeon_center_now($timezone = null) {
+  $tz = eyeon_resolve_timezone($timezone);
+  $now = new DateTime('now', $tz);
+  return [
+    'date' => $now->format('Y-m-d'),
+    'time' => $now->format('H:i:s'),
+  ];
+}
+
+function eyeon_normalize_time($time) {
+  if (empty($time)) return null;
+  $trimmed = trim((string) $time);
+  if ($trimmed === '') return null;
+  if (preg_match('/^\d{1,2}:\d{2}$/', $trimmed)) {
+    return $trimmed . ':00';
+  }
+  return $trimmed;
+}
+
+/**
+ * True when an occurrence on $occ_date is still upcoming relative to center-local now.
+ * All-day events count as upcoming for the whole calendar day.
+ */
+function eyeon_is_occurrence_upcoming($occ_date, $end_time, $today, $now_time, $is_all_day = false) {
+  if ($occ_date > $today) return true;
+  if ($occ_date < $today) return false;
+  if ($is_all_day) return true;
+  $end = eyeon_normalize_time($end_time);
+  if ($end === null) $end = '23:59:59';
+  return $end >= $now_time;
+}
+
+function eyeon_event_has_recurrence($event) {
+  if (!is_array($event)) return false;
+  $type = isset($event['event_type']) ? $event['event_type'] : null;
+  $is_repeat = !empty($event['is_repeat_event']);
+  $rrule = isset($event['repeat_rrule']) ? $event['repeat_rrule'] : '';
+  return $type === 'recurring' || ($is_repeat && !empty($rrule));
+}
+
+/**
+ * Expand an RRULE into DateTime occurrences.
+ *
+ * Uses calendar-date comparison in the center timezone (not instant comparison)
+ * so evening wall-clock occurrences are not skipped early for US centers.
+ * Caps iteration with an upper date bound (+365 days) and a hard count limit
+ * so ongoing events with no UNTIL cannot hang the page.
+ *
+ * @param string $rrule_string
+ * @param bool $upcoming_only
+ * @param string|null $timezone IANA center timezone
+ * @param string|null $end_time Event end_time (HH:mm or HH:mm:ss) for today-still-upcoming checks
+ * @param bool $is_all_day
+ * @param string|null $start_date Lower-bound calendar date (event.start_date)
+ * @return DateTimeInterface[]
+ */
+function eyeon_get_rrule_occurrences($rrule_string, $upcoming_only = false, $timezone = null, $end_time = null, $is_all_day = false, $start_date = null) {
   if (empty($rrule_string)) return [];
   try {
     $rrule = new \RRule\RRule($rrule_string);
   } catch (\Exception $e) {
     return [];
   }
+
+  $now = eyeon_center_now($timezone);
+  $today = $now['date'];
+  $now_time = $now['time'];
+
+  // Upper bound: today + 365 days (UTC calendar date, matching the JS grid window)
+  $upper = (new DateTime($today . ' 00:00:00', new DateTimeZone('UTC')))
+    ->modify('+365 days')
+    ->format('Y-m-d');
+
   $dates = [];
-  $now = new DateTime('now', wp_timezone());
+  $max = 400; // hard cap — prevents infinite iteration on UNTIL-less RRULEs
   foreach ($rrule as $occurrence) {
-    if ($upcoming_only && $occurrence < $now) continue;
+    $occ_date = eyeon_rrule_occurrence_calendar_date($occurrence);
+    if ($occ_date === '') continue;
+    if ($start_date && $occ_date < $start_date) continue;
+    if ($occ_date > $upper) break;
+
+    if ($upcoming_only) {
+      if (!eyeon_is_occurrence_upcoming($occ_date, $end_time, $today, $now_time, $is_all_day)) {
+        continue;
+      }
+    }
+
     $dates[] = $occurrence;
+    if (count($dates) >= $max) break;
   }
   return $dates;
 }
@@ -335,13 +435,16 @@ function eyeon_sort_custom_dates($custom_dates) {
   return array_merge($valid, $empty);
 }
 
-function eyeon_get_upcoming_custom_date($custom_dates) {
+function eyeon_get_upcoming_custom_date($custom_dates, $timezone = null) {
   if (empty($custom_dates) || !is_array($custom_dates)) return null;
-  $now = new DateTime('now', wp_timezone());
-  $today = $now->format('Y-m-d');
+  $now = eyeon_center_now($timezone);
+  $today = $now['date'];
+  $now_time = $now['time'];
   $sorted = eyeon_sort_custom_dates($custom_dates);
   foreach ($sorted as $cd) {
-    if (!empty($cd['date']) && $cd['date'] >= $today) {
+    if (empty($cd['date'])) continue;
+    $is_all_day = empty($cd['end_time']) && empty($cd['start_time']);
+    if (eyeon_is_occurrence_upcoming($cd['date'], isset($cd['end_time']) ? $cd['end_time'] : null, $today, $now_time, $is_all_day)) {
       return $cd;
     }
   }
