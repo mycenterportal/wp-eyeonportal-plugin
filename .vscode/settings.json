@@ -24,6 +24,7 @@
     "assets/css/**": true,
     "assets/fonts/**": true,
     "assets/map-releases/**": true,
+    "assets/map-v2-releases/**": true,
     "inc/redux-core/**": true,
     "plugin-update-checker/**": true
   },
