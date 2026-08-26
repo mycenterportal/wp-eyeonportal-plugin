@@ -119,7 +119,7 @@ Centers may use **either or both** public website stacks long term:
 | Kiosk display feature | `kiosk-electron` + `web-app-backend` (+ admin-portal if staff configures it) |
 | Center map (floors, retailers, amenities, settings) | `threejs-map` + `admin-portal` + `admin-portal-backend` + `web-app-backend`; release bumps consumers (`center-website`, `center-website-runtime`, `kiosk-electron`, WP plugin via CI) |
 | Map library UI/behavior change (v1) | `threejs-map` publish `@eyeon/threejs-map` + bump in admin-portal, center-website, kiosk-electron; WP `map-releases/` via CI |
-| Map library UI/behavior change (v2) | `threejs-map` publish `@eyeon/map` + bump in admin-portal, center-website, kiosk-electron; WP `map-v2-releases/` via CI (do not bump v1 as part of v2-only work) |
+| Map library UI/behavior change (v2) | `threejs-map` publish `@eyeon/map` + bump in admin-portal, admin-portal-backend, center-website, kiosk-electron; WP `map-v2-releases/` via CI (do not bump v1 as part of v2-only work) |
 | API token scopes | `admin-portal` + `admin-portal-backend` + `web-app-backend` |
 | EKS / deploy config | `eks_iac` + affected app repo |
 | Helpdesk feature / schema | `eyeon-helpdesk` only (standalone DB + Next.js API routes) |
@@ -245,9 +245,11 @@ On push to `threejs-map` `main` / `beta`, CI treats packages **independently**:
    `THREEJS_MAP_VERSION` / `THREEJS_MAP_V2_VERSION` constant.
 4. Slack: one notification per package that was part of the run (success or fail).
 
-Bump `@eyeon/map` in admin-portal, center-website, and kiosk-electron when
-adopting a new v2 library version. Bump `@eyeon/threejs-map` only for v1 work
-(do not bump v1 as part of v2-only releases).
+Bump `@eyeon/map` in admin-portal, admin-portal-backend, center-website, and
+kiosk-electron when adopting a new v2 library version. The backend must use the
+published npm package (not `file:../threejs-map`) so Docker/EKS images can
+install it. Bump `@eyeon/threejs-map` only for v1 work (do not bump v1 as part
+of v2-only releases).
 
 ## WordPress Plugin (`wp-eyeonportal-plugin`)
 
