@@ -188,11 +188,13 @@
 
 #eyeon-chatbot-root .eyeon-chatbot__message {
   max-width: 85%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.45;
-  word-wrap: break-word;
+  word-break: break-word;
 }
 
 #eyeon-chatbot-root .eyeon-chatbot__message--user {
@@ -221,7 +223,7 @@
 }
 
 #eyeon-chatbot-root .eyeon-chatbot__message-link {
-  display: inline-block;
+  display: inline;
   color: var(--eyeon-chat-link) !important;
   font-weight: 600;
   text-decoration: none;
