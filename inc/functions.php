@@ -360,9 +360,7 @@ function eyeon_is_occurrence_upcoming($occ_date, $end_time, $today, $now_time, $
 function eyeon_event_has_recurrence($event) {
   if (!is_array($event)) return false;
   $type = isset($event['event_type']) ? $event['event_type'] : null;
-  $is_repeat = !empty($event['is_repeat_event']);
-  $rrule = isset($event['repeat_rrule']) ? $event['repeat_rrule'] : '';
-  return $type === 'recurring' || ($is_repeat && !empty($rrule));
+  return $type === 'recurring';
 }
 
 /**

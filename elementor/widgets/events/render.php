@@ -98,8 +98,7 @@ jQuery(document).ready(function($) {
   }
 
   function eventHasRecurrence(event) {
-    return event.event_type === 'recurring'
-      || (event.is_repeat_event && event.repeat_rrule && event.repeat_rrule !== '');
+    return event.event_type === 'recurring';
   }
 
   function normalizeTime(time) {
@@ -127,6 +126,12 @@ jQuery(document).ready(function($) {
     return moment.utc(occ).format('YYYY-MM-DD');
   }
 
+  function calendarDate(value) {
+    if (!value) return null;
+    const match = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : null;
+  }
+
   function calendarDateToUtcMs(dateStr) {
     if (!dateStr || typeof dateStr !== 'string') return NaN;
     const trimmed = dateStr.trim();
@@ -152,7 +157,7 @@ jQuery(document).ready(function($) {
         .filter((cd) => cd.date && cd.date !== '')
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((cd) => ({
-          date: cd.date,
+          date: calendarDate(cd.date) || cd.date,
           start_time: cd.start_time || startTime,
           end_time: cd.end_time || endTime,
         }));
@@ -178,8 +183,10 @@ jQuery(document).ready(function($) {
         occurrences.forEach(function (occ) {
           const dateStr = occurrenceCalendarDate(occ);
           if (seen[dateStr]) return;
-          // Respect event.start_date as a lower bound
-          if (event.start_date && dateStr < event.start_date) return;
+          const startBound = calendarDate(event.start_date);
+          const endBound = calendarDate(event.end_date);
+          if (startBound && dateStr < startBound) return;
+          if (endBound && dateStr > endBound) return;
           seen[dateStr] = true;
           slots.push({
             date: dateStr,
@@ -211,6 +218,39 @@ jQuery(document).ready(function($) {
     return slots.find((slot) =>
       isOccurrenceUpcoming(slot.date, slot.end_time, now.date, now.time, isAllDay)
     ) || null;
+  }
+
+  function isOnetimeUpcoming(event, today, nowTime) {
+    const start = calendarDate(event.start_date);
+    const end = calendarDate(event.end_date) || start;
+    if (start && start > today) return true;
+    return isOccurrenceUpcoming(end, event.end_time, today, nowTime, !!event.is_all_day_event);
+  }
+
+  /**
+   * Same public-live contract as web-app-backend isEventPubliclyLive.
+   * ongoing never expires; custom uses remaining slots; recurring uses RRULE.
+   */
+  function isEventPubliclyLive(event) {
+    if (event.event_type === 'ongoing') return true;
+
+    const centerTz = event.center_timezone || wpTimezone;
+    const now = getCenterNow(centerTz);
+
+    if (event.event_type === 'custom') {
+      const slots = buildEventDateSlots(event);
+      if (slots.length === 0) {
+        return isOnetimeUpcoming(event, now.date, now.time);
+      }
+      return !!findUpcomingSlot(slots, event);
+    }
+
+    if (eventHasRecurrence(event)) {
+      const slots = buildEventDateSlots(event);
+      return !!findUpcomingSlot(slots, event);
+    }
+
+    return isOnetimeUpcoming(event, now.date, now.time);
   }
 
   /**
@@ -330,7 +370,7 @@ jQuery(document).ready(function($) {
 
   function parse_events(response) {
     if (response.items) {
-      let allEvents = response.items;
+      let allEvents = response.items.filter(isEventPubliclyLive);
       
       if (settings.only_static_events === 'yes') {
         allEvents = allEvents.filter(function(event) {
