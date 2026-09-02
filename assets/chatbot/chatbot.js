@@ -357,10 +357,23 @@
     return digits ? 'tel:' + digits : '';
   }
 
+  function displayUrlLabel(label, href) {
+    var text = String(label || '').trim();
+    if (
+      /^https?:\/\//i.test(text) ||
+      text.indexOf('?') !== -1 ||
+      (text.indexOf('.') !== -1 && text.indexOf('/') !== -1)
+    ) {
+      return 'here';
+    }
+    return label;
+  }
+
   function appendRichText($container, text) {
     // Stored replies use absolute URLs: [Title](https://...).
     // Legacy typed links (type:slug) are shown as plain text labels.
     var urlPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+    var bareUrlPattern = /https?:\/\/[^\s<>[\]()]+/g;
     var legacyPattern = /\[([^\]]+)\]\((deal|store|event|career|news|page):([^)]+)\)/g;
     var phonePattern = /\b(\d{3}\.\d{3}\.\d{4})\b/g;
     var tokens = [];
@@ -371,8 +384,22 @@
         start: match.index,
         end: match.index + match[0].length,
         kind: 'url',
-        label: match[1],
+        label: displayUrlLabel(match[1], match[2]),
         href: match[2],
+      });
+    }
+
+    while ((match = bareUrlPattern.exec(text)) !== null) {
+      if (match.index >= 2 && text.slice(match.index - 2, match.index) === '](') {
+        continue;
+      }
+      var rawHref = match[0].replace(/[.,;:!?]+$/, '');
+      tokens.push({
+        start: match.index,
+        end: match.index + rawHref.length,
+        kind: 'url',
+        label: displayUrlLabel(rawHref, rawHref),
+        href: rawHref,
       });
     }
 
