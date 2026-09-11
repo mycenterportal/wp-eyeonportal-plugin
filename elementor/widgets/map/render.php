@@ -16,6 +16,7 @@ if ( $map_version === 2 ) {
     'webApiURI' => rest_url( 'eyeon-portal/map' ),
     'host' => 'WEBSITE',
     'centerId' => intval( $center['id'] ),
+    'imageProxyUrl' => site_url().'/index.php?eyeonmedia=',
   );
 
   $selected_store_id = ( isset( $_GET['r'] ) && ! empty( $_GET['r'] ) ) ? $_GET['r'] : null;
@@ -68,7 +69,7 @@ $mapboxProps = array(
   'webApiURI' => rest_url('eyeon-portal/map'),
 );
 
-$selected_store_id = (isset($_GET['r']) && !empty(['r'])) ? $_GET['r'] : null;
+$selected_store_id = (isset($_GET['r']) && !empty($_GET['r'])) ? $_GET['r'] : null;
 if($selected_store_id) {
   $mapboxProps['config']['SELECTED_RETAILER_ID'] = intval($selected_store_id);
 }

@@ -246,7 +246,7 @@ if( isset($mycenterevent['next']) ) {
 							<?php if( $mycenterevent['is_all_day_event'] ) : ?>
                 <span class="all_day_event">true</span>
 							<?php endif; ?>
-							<?php if( $mycenterevent['is_repeat_event'] ) : ?>
+							<?php if( ($mycenterevent['event_type'] ?? '') === 'recurring' && !empty($mycenterevent['repeat_rrule']) ) : ?>
                 <span class="recurring"><?= $mycenterevent['repeat_rrule'] ?></span>
 							<?php endif; ?>
 							<span class="title"><?= $mycenterevent['title'] ?></span>
