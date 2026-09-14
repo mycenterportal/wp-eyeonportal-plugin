@@ -50,7 +50,7 @@ function mcd_image_url($url = '') {
 	return MCD_PLUGIN_URL.'assets/img/blank.gif';
 }
 
-function mcd_api_data($url) {
+function mcd_api_data($url, $assoc = true) {
   global $mcd_settings;
   $url = API_BASE_URL.$url;
 	$url .= (strpos($url, '?')?'&':'?').'time='.time();
@@ -72,7 +72,8 @@ function mcd_api_data($url) {
 
 	$status = wp_remote_retrieve_response_code( $req );
 	$body = wp_remote_retrieve_body( $req );
-	$data = json_decode( $body, true );
+	// $assoc=false keeps JSON objects as objects so `{}` is not re-encoded as `[]`.
+	$data = json_decode( $body, $assoc );
 	return array(
 		'status' => $status,
 		'data' => $data,

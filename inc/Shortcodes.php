@@ -686,8 +686,10 @@ if( !class_exists('MCDShortcodes') ) {
         $api_url .= '?' . http_build_query($query_params);
       }
 
-      // Call the API using mcd_api_data
-      $response = mcd_api_data($api_url);
+      // Preserve JSON objects (`{}`). `json_decode(..., true)` turns empty
+      // objects into `[]`, which crashes the v2 map viewer on floor switch
+      // (`(value ?? "").trim is not a function` for style/label/theme fields).
+      $response = mcd_api_data($api_url, false);
 
       // Return the response data
       return rest_ensure_response($response['data']);
