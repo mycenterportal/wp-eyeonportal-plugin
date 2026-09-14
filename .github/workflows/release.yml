@@ -51,6 +51,12 @@ jobs:
             exit 1
           fi
 
+          map_v2_version="$(grep -E "OR define\('THREEJS_MAP_V2_VERSION'" eyeonportal.php | head -1 | sed -E "s/.*OR define\('THREEJS_MAP_V2_VERSION', *'([^']+)'.*/\1/")"
+          if [ -z "$map_v2_version" ]; then
+            echo "Error: THREEJS_MAP_V2_VERSION not found in eyeonportal.php."
+            exit 1
+          fi
+
           rsync -a \
             --exclude='.git/' \
             --exclude='.cursor/' \
@@ -64,6 +70,16 @@ jobs:
             for version_dir in "$map_releases_dir"/*; do
               [ -d "$version_dir" ] || continue
               if [ "$(basename "$version_dir")" != "$map_version" ]; then
+                rm -rf "$version_dir"
+              fi
+            done
+          fi
+
+          map_v2_releases_dir="$plugin_dir/assets/map-v2-releases"
+          if [ -d "$map_v2_releases_dir" ]; then
+            for version_dir in "$map_v2_releases_dir"/*; do
+              [ -d "$version_dir" ] || continue
+              if [ "$(basename "$version_dir")" != "$map_v2_version" ]; then
                 rm -rf "$version_dir"
               fi
             done

@@ -18,14 +18,18 @@ class EyeOn_Map_Widget extends \Elementor\Widget_Base {
   }
 
   public function get_script_depends() {
+		$center = function_exists( 'eyeon_get_center' ) ? eyeon_get_center() : null;
+		$map_version = ( is_array( $center ) && isset( $center['map_version'] ) && intval( $center['map_version'] ) === 2 ) ? 2 : 1;
 		return [
-      'eyeon-map'
+      $map_version === 2 ? 'eyeon-map-v2' : 'eyeon-map',
     ];
 	}
   
 	public function get_style_depends() {
+		$center = function_exists( 'eyeon_get_center' ) ? eyeon_get_center() : null;
+		$map_version = ( is_array( $center ) && isset( $center['map_version'] ) && intval( $center['map_version'] ) === 2 ) ? 2 : 1;
     return [
-      'eyeon-map',
+      $map_version === 2 ? 'eyeon-map-v2' : 'eyeon-map',
       'eyeon-elementor-style'
     ];
 	}
