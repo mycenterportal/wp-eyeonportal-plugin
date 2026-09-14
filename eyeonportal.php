@@ -9,8 +9,8 @@ Author URI: https://eyeonllc.com/
 Licence: GPLv2 or later
 */
 
-defined('THREEJS_MAP_V1_VERSION')       OR define('THREEJS_MAP_V1_VERSION', '1.1.43');
-defined('THREEJS_MAP_V2_VERSION')       OR define('THREEJS_MAP_V2_VERSION', '2.0.10');
+defined('THREEJS_MAP_V1_VERSION')       OR define('THREEJS_MAP_V1_VERSION', '1.1.44');
+defined('THREEJS_MAP_V2_VERSION')       OR define('THREEJS_MAP_V2_VERSION', '2.0.11');
 defined('THREEJS_MAP_API_RESPONSE_KEY') OR define('THREEJS_MAP_API_RESPONSE_KEY', 'eyeon_map_api_response');
 
 require_once __DIR__ . '/vendor/autoload.php';
