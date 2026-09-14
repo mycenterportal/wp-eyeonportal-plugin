@@ -323,13 +323,13 @@ children not mounted); Build Website POSTs then redirects to `/websites/:id/prev
   (`limit` / `page` / `sort`; `items[{id,name}]`).
 - Builder writes target `/eyeon/api/*` → admin-portal-backend unified websites
   surface: `/v1/websites/:websiteId`, `/pages`, `/settings`, `/forms`,
-  `/publish`. Banners palette: `/v1/web_slider/settings/:centerId`.
+  `/assets`, `/publish`. Banners palette: `/v1/web_slider/settings/:centerId`.
 - Retired (do not reintroduce): top-level `/v1/website_pages/*`,
   `/v1/website_settings/*`, `/v1/website_forms/*`, `/v1/website_header/*`,
   `/v1/website_footer/*`, and local `/projects` routes.
-- Local Next.js routes that remain on purpose: magic-link consume/logout,
-  upload/download, and S3 read proxy (`/api/s3/[...path]`). Authz stays on
-  the backends.
+- Local Next.js routes are limited to auth handoff, health checks, and
+  read-only proxies/BFFs. Builder media writes go through
+  `admin-portal-backend`; the builder has no AWS credentials.
 
 ### HTTP / API client layer
 
@@ -338,7 +338,7 @@ Same-origin Axios pattern in both builder and runtime:
 | App | Client | Base | Upstream |
 |---|---|---|---|
 | Builder | `apiClient` | `/eyeon/api` | `admin-portal-backend` via `src/app/eyeon/api/[...path]` (session cookies) |
-| Builder | `localApi` | `""` | In-app Next.js routes only (upload, etc.) |
+| Builder | `localApi` | `""` | Intentional in-app auth/read-only BFF routes only |
 | Builder | `GET /api/center/:centerId` | local BFF | `web-app-backend` `/v1/center` (+ info); resolves `api_access_token` |
 | Runtime | `apiClient` | `/api/eyeon` | `web-app-backend` GET-only proxy; injects per-center token server-side |
 | Runtime | `runtime-api.ts` | server-only | `web-app-backend` `/v1/runtime/*` via `RUNTIME_SERVICE_SECRET` |
@@ -346,10 +346,12 @@ Same-origin Axios pattern in both builder and runtime:
 
 - Prefer `apiClient` for admin-backend data; use `localApi` only for intentional
   local routes. Direct `fetch` is for server→external services or streaming/SSE.
-- Builder and runtime have **no direct Postgres access**. Runtime has no AWS
-  credentials either. Preview vs production content is decided by
+- Builder and runtime have **no direct Postgres or AWS credential access**.
+  Preview vs production content is decided by
   `website_domains.is_preview` (draft vs `*_published` tables). Media via CDN
-  proxy (`/api/eyeon-media/*`); uploads/webhook ingest on `web-app-backend` only.
+  proxy (`/api/eyeon-media/*`); builder media writes are handled by
+  `admin-portal-backend`, while public uploads/webhook ingest are handled by
+  `web-app-backend`.
 - Center **News** module data is `web-app-backend` `/v1/blogs` (not builder
   `blog_posts`).
 
