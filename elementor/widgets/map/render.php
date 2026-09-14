@@ -27,8 +27,7 @@ if ( $map_version === 2 ) {
 
 <div id="eyeon-map-<?= $unique_id ?>" class="eyeon-map">
   <div class="eyeon-wrapper">
-      <div id="root"></div>
-    </div>
+    <div id="root"></div>
   </div>
 </div>
 
@@ -77,8 +76,7 @@ if($selected_store_id) {
 
 <div id="eyeon-map-<?= $unique_id ?>" class="eyeon-map">
   <div class="eyeon-wrapper">
-      <div id="root"></div>
-    </div>
+    <div id="root"></div>
   </div>
 </div>
 

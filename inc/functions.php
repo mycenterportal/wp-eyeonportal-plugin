@@ -62,12 +62,21 @@ function mcd_api_data($url) {
     ),
 	);
 	$req = wp_remote_get( $url, $args );
+	if ( is_wp_error( $req ) ) {
+		return array(
+			'status' => 0,
+			'data'   => null,
+			'error'  => $req->get_error_message(),
+		);
+	}
+
 	$status = wp_remote_retrieve_response_code( $req );
 	$body = wp_remote_retrieve_body( $req );
 	$data = json_decode( $body, true );
 	return array(
 		'status' => $status,
-		'data' => $data
+		'data' => $data,
+		'error' => null,
 	);
 }
 
@@ -98,6 +107,34 @@ function mcd_api_post($url, $body = array()) {
 function eyeon_get_center() {
 	$response = mcd_api_data( MCD_API_CENTER );
   return $response['data'];
+}
+
+function eyeon_get_api_error_message( $response ) {
+	if ( ! empty( $response['error'] ) && is_string( $response['error'] ) ) {
+		return $response['error'];
+	}
+
+	$data = ( isset( $response['data'] ) && is_array( $response['data'] ) ) ? $response['data'] : array();
+	$message = '';
+	foreach ( array( 'description', 'message', 'error' ) as $key ) {
+		if ( ! empty( $data[ $key ] ) && is_string( $data[ $key ] ) ) {
+			$message = $data[ $key ];
+			break;
+		}
+	}
+
+	$status = isset( $response['status'] ) ? (int) $response['status'] : 0;
+	if ( $message && $status > 0 ) {
+		return sprintf( 'HTTP %d: %s', $status, $message );
+	}
+	if ( $message ) {
+		return $message;
+	}
+	if ( $status > 0 ) {
+		return sprintf( 'API request failed (HTTP %d).', $status );
+	}
+
+	return 'Could not reach the EyeOn API.';
 }
 
 function eyeon_get_api_token_environment( $token ) {

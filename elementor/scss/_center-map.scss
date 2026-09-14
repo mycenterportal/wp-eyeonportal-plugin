@@ -1,3 +1,18 @@
 .mapBoxComponent {
   line-height: 21px;
 }
+
+/* v2 MapViewer sits inside #root > .App. Elementor Map Height is on #root;
+   stretch the wrappers so the canvas fills the widget the same way v1 does. */
+.eyeon-map .eyeon-wrapper #root {
+  position: relative;
+
+  .App,
+  .eyeon-map-viewer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+}

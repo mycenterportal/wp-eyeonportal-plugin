@@ -45,9 +45,9 @@ jobs:
           plugin_dir="$build_dir/eyeonportal"
           mkdir -p "$plugin_dir"
 
-          map_version="$(grep -E "OR define\('THREEJS_MAP_VERSION'" eyeonportal.php | head -1 | sed -E "s/.*OR define\('THREEJS_MAP_VERSION', *'([^']+)'.*/\1/")"
+          map_version="$(grep -E "OR define\('THREEJS_MAP_V1_VERSION'" eyeonportal.php | head -1 | sed -E "s/.*OR define\('THREEJS_MAP_V1_VERSION', *'([^']+)'.*/\1/")"
           if [ -z "$map_version" ]; then
-            echo "Error: THREEJS_MAP_VERSION not found in eyeonportal.php."
+            echo "Error: THREEJS_MAP_V1_VERSION not found in eyeonportal.php."
             exit 1
           fi
 

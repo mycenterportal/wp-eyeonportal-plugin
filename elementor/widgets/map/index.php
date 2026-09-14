@@ -67,7 +67,7 @@ class EyeOn_Map_Widget extends \Elementor\Widget_Base {
           'size' => 600,
         ],
         'selectors' => [
-          '{{WRAPPER}} .eyeon-map .eyeon-wrapper #root' => 'height: {{SIZE}}{{UNIT}};',
+          '{{WRAPPER}} .eyeon-map .eyeon-wrapper #root' => 'height: {{SIZE}}{{UNIT}}; position: relative;',
         ],
       ]
     );

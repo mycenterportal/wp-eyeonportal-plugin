@@ -54,6 +54,13 @@
 	color: #fff;
 }
 
+.eyeon-api-token-error {
+	display: block;
+	margin-top: 6px;
+	color: #d63638;
+	font-weight: 500;
+}
+
 #mcd_settings-mcp_stores_categories {
 	position: absolute;
 	right: 0;

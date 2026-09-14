@@ -242,7 +242,7 @@ On push to `threejs-map` `main` / `beta`, CI treats packages **independently**:
 2. Release only the bumped package(s) in parallel jobs (build/test/publish).
 3. For each successful non-prerelease publish, sync that generation’s WP assets
    (`map-releases/{v1}` and/or `map-v2-releases/{v2}`) and bump the matching
-   `THREEJS_MAP_VERSION` / `THREEJS_MAP_V2_VERSION` constant.
+   `THREEJS_MAP_V1_VERSION` / `THREEJS_MAP_V2_VERSION` constant.
 4. Slack: one notification per package that was part of the run (success or fail).
 
 Bump `@eyeon/map` in admin-portal, admin-portal-backend, center-website, and

@@ -291,14 +291,14 @@ if ( ! class_exists( 'EyeOnManageWp' ) ) {
 		}
 
 		/**
-		 * Keep only the map release versions referenced by THREEJS_MAP_VERSION
+		 * Keep only the map release versions referenced by THREEJS_MAP_V1_VERSION
 		 * and THREEJS_MAP_V2_VERSION.
 		 */
 		private function remove_unused_map_releases_from_plugin_root( $root ) {
 			$this->prune_map_release_dir(
 				$root . '/assets/map-releases',
 				$root . '/eyeonportal.php',
-				'THREEJS_MAP_VERSION'
+				'THREEJS_MAP_V1_VERSION'
 			);
 			$this->prune_map_release_dir(
 				$root . '/assets/map-v2-releases',

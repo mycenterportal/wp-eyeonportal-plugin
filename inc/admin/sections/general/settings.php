@@ -1,7 +1,9 @@
 <?php defined( 'ABSPATH' ) || exit;
 
-$center    = eyeon_get_center();
-$api_token = isset( $mcd_settings['api_access_token'] ) ? $mcd_settings['api_access_token'] : '';
+$api_token         = isset( $mcd_settings['api_access_token'] ) ? $mcd_settings['api_access_token'] : '';
+$center_lookup     = mcd_api_data( MCD_API_CENTER );
+$center            = ( isset( $center_lookup['data'] ) && is_array( $center_lookup['data'] ) ) ? $center_lookup['data'] : null;
+$environment_badge = eyeon_get_api_token_environment_badge_html( $api_token );
 
 $center_desc = '';
 if ( $center && ! empty( $center['id'] ) && ! empty( $center['name'] ) ) {
@@ -11,10 +13,21 @@ if ( $center && ! empty( $center['id'] ) && ! empty( $center['name'] ) ) {
 		esc_html( $center['name'] )
 	);
 
-	$environment_badge = eyeon_get_api_token_environment_badge_html( $api_token );
 	if ( $environment_badge ) {
 		$center_desc .= ' ' . $environment_badge;
 	}
+} elseif ( ! empty( $api_token ) ) {
+	$status = isset( $center_lookup['status'] ) ? (int) $center_lookup['status'] : 0;
+	if ( $status >= 200 && $status < 300 && empty( $center_lookup['error'] ) ) {
+		$error_message = 'Unexpected API response — center id/name missing.';
+	} else {
+		$error_message = eyeon_get_api_error_message( $center_lookup );
+	}
+
+	if ( $environment_badge ) {
+		$center_desc .= $environment_badge . ' ';
+	}
+	$center_desc .= '<span class="eyeon-api-token-error">' . esc_html( $error_message ) . '</span>';
 }
 
 Redux::set_section(
