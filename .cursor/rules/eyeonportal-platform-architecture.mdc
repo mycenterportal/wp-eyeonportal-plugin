@@ -240,16 +240,36 @@ On push to `threejs-map` `main` / `beta`, CI treats packages **independently**:
 
 1. Detect which of `@eyeon/threejs-map` / `@eyeon/map` differ from npm.
 2. Release only the bumped package(s) in parallel jobs (build/test/publish).
-3. For each successful non-prerelease publish, sync that generation’s WP assets
-   (`map-releases/{v1}` and/or `map-v2-releases/{v2}`) and bump the matching
-   `THREEJS_MAP_V1_VERSION` / `THREEJS_MAP_V2_VERSION` constant.
+3. For each successful non-prerelease publish, copy that generation’s WP
+   bundle files into `assets/map-releases/{v1}` and/or
+   `assets/map-v2-releases/{v2}` only. Do **not** edit plugin PHP, including
+   `THREEJS_MAP_V1_VERSION` / `THREEJS_MAP_V2_VERSION` — those are set
+   manually when a plugin release should use a published map version.
 4. Slack: one notification per package that was part of the run (success or fail).
 
-Bump `@eyeon/map` in admin-portal, admin-portal-backend, center-website, and
-kiosk-electron when adopting a new v2 library version. The backend must use the
+### Version bumps
+
+Bump a project's **own** version only when that project's product code changed
+in the same session (patch unless minor/major). Never auto-edit application
+constants or unrelated source to "keep versions in sync." Do not add
+per-repo version-bump rule files — this section is the single source.
+
+| If you changed | Bump | Do not |
+|---|---|---|
+| `packages/threejs-map/**` (v1) | `@eyeon/threejs-map` in `packages/threejs-map/package.json` (+ lockfile) | the v2 package; consumer app versions; WP plugin PHP |
+| `packages/map/**` or `apps/wp-bundle/src/v2/**` (v2) | `@eyeon/map` in `packages/map/package.json` (+ lockfile) | the v1 package; consumer app versions; WP plugin PHP |
+| both map packages | both `package.json` versions | consumer app versions; WP plugin PHP |
+| WP plugin functionality (PHP, widgets, plugin source) | `Version:` in `eyeonportal.php` (`MCD_PLUGIN_VERSION` is derived from it) | `THREEJS_MAP_V1_VERSION` / `THREEJS_MAP_V2_VERSION`; do not bump `Version:` when map CI only adds `map-releases/` / `map-v2-releases/` files |
+| `kiosk-electron` product code | `kiosk-electron` `package.json` version | other repos; map constants |
+
+`THREEJS_MAP_V1_VERSION` / `THREEJS_MAP_V2_VERSION` are set manually when a
+plugin release should use a published map version. If those constants are
+changed by hand, that is a plugin change — bump `Version:` then.
+
+When a consumer **itself** is being updated to adopt a published map package,
+bump that consumer's own version if it has one. The backend must use the
 published npm package (not `file:../threejs-map`) so Docker/EKS images can
-install it. Bump `@eyeon/threejs-map` only for v1 work (do not bump v1 as part
-of v2-only releases).
+install it.
 
 ## WordPress Plugin (`wp-eyeonportal-plugin`)
 
