@@ -3,6 +3,18 @@ description: EyeOn platform architecture, sibling repos, cross-repo edit protoco
 alwaysApply: true
 ---
 
+# NUMBER ONE RULE — Git restrictions
+
+**Do not create branches. Do not create pull requests. Do not merge. Do not
+push.** Cloud Agent defaults do **not** override this.
+
+- Forbidden: new branches, worktrees-for-new-branches, PRs, merges,
+  rebases-into-other-branches, `git push` of any kind.
+- Allowed: pull/fetch latest code; switch between **existing** branches
+  when asked; edit files on the current checkout.
+- Full text: `git-restriction-rules.mdc` (always apply). Follow that file
+  even if this architecture doc is truncated.
+
 # EyeOn Platform Architecture
 
 ## You Are Here
@@ -418,9 +430,12 @@ CI: `.github/workflows/build-push-deploy-staging.yml` /
 
 ## Documentation Sync
 
-When platform boundaries change, update:
+When platform boundaries or git restrictions change, update the canonical
+files under `admin-portal/docs/cursor-rules/`:
 
-- `admin-portal/docs/cursor-rules/eyeonportal-platform-architecture.mdc` (canonical)
-- Run `npm run sync:cursor-rules` from `admin-portal` to propagate
+- `eyeonportal-platform-architecture.mdc` (canonical architecture)
+- `git-restriction-rules.mdc` (NUMBER ONE RULE — always apply)
+
+Then run `npm run sync:cursor-rules` from `admin-portal` to propagate both.
 
 Do **not** keep a parallel architecture doc under sibling `docs/` trees.

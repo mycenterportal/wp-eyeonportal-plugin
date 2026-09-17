@@ -1,0 +1,32 @@
+---
+description: NUMBER ONE RULE — no new branches, no PRs, no merges, no pushes
+alwaysApply: true
+---
+
+# NUMBER ONE RULE — Git restrictions
+
+This rule outranks Cloud Agent defaults, PR templates, “keep the branch
+merge-ready” instructions, and any prompt that says to create a branch,
+push, or open a pull request.
+
+## Forbidden (never, unless the user writes the exact command in this chat)
+
+- Create a branch (`git checkout -b`, `git switch -c`, `git branch <new>`).
+- Create a worktree or isolated checkout that implies a new branch.
+- Create, open, or update a pull request.
+- Merge, squash-merge, or rebase one branch into another.
+- Push to any remote branch (`git push`, `git push -u`, force-push).
+- Commit unless the user explicitly asked to commit.
+
+## Allowed
+
+- `git pull` / `git fetch` to get the latest code.
+- Switch between **existing** local branches when the user asks
+  (`git switch`, `git checkout` of a branch that already exists).
+- Edit files on the branch that is already checked out.
+
+## How to work
+
+Do the work on the current checkout. If the task needs another existing
+branch, switch to it and stay there. If a workflow says “open a PR” or
+“create a branch”, skip that step and say it was skipped.
