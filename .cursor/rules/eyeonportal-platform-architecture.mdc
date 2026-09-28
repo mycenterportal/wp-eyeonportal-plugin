@@ -233,8 +233,12 @@ v2 owns S3 objects under `media/map/` only (never `media/mapit/`).
 5. Render: `@eyeon/map/viewer` (`MapViewer`). WP loads
    `assets/map-v2-releases/{THREEJS_MAP_V2_VERSION}/`.
 
-Admin API: `/v1/map/*` in `admin-portal-backend`. Converter:
-`POST /v1/map/convert-from-v1` (super-admin) — reads mapit2, writes cm_* only.
+Admin API: `/v1/map/*` in `admin-portal-backend`. Switching a center to
+the New map starts a blank `cm_*` draft and leaves Classic `mapit2_*` data
+in place. Developers can permanently remove that Classic data with
+`DELETE /v1/map/classic-data` (floor SVGs under `media/mapit/` included;
+retailers, kiosks, and `cm_*` / `media/map/` are not touched). After that
+cleanup, the center cannot switch back to Classic.
 
 ### Consumers
 
