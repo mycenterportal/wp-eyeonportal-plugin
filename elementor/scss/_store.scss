@@ -10,9 +10,33 @@
         flex: 0 0 300px;
 
         .mcd-retailer-image {
+          position: relative;
+
           img {
             width: 100%;
             height: auto;
+          }
+
+          .custom-flags {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: absolute;
+            left: 0;
+            top: 8px;
+            align-items: flex-start;
+            z-index: 2;
+
+            li {
+              background-color: #58a8ca;
+              color: white;
+              padding: 4px 10px;
+              font-size: 12px;
+              line-height: 14px;
+            }
           }
         }
       }
