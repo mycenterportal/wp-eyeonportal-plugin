@@ -17,6 +17,7 @@ if ( $map_version === 2 ) {
     'host' => 'WEBSITE',
     'centerId' => intval( $center['id'] ),
     'imageProxyUrl' => site_url().'/index.php?eyeonmedia=',
+    'storePageUrl' => mcd_single_page_url( 'mycenterstore' ),
   );
 
   $selected_store_id = ( isset( $_GET['r'] ) && ! empty( $_GET['r'] ) ) ? $_GET['r'] : null;
