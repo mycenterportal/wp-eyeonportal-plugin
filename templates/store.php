@@ -37,6 +37,19 @@ $store_url = mcd_single_page_url('mycenterstore');
 				<div class="mcd-retailer-image-col">
 					<div class="mcd-retailer-image">
 						<img src="<?= $mycenterstore['media']['url'] ?>" />
+						<?php
+						$custom_flags = ( isset( $mycenterstore['custom_flags'] ) && is_array( $mycenterstore['custom_flags'] ) ) ? $mycenterstore['custom_flags'] : array();
+						$custom_flags = array_values( array_filter( $custom_flags, function( $flag ) {
+							return is_array( $flag ) && ! empty( $flag['name'] );
+						} ) );
+						?>
+						<?php if( ! empty( $custom_flags ) ) : ?>
+							<ul class="custom-flags eyeon-hide">
+								<?php foreach( $custom_flags as $flag ) : ?>
+									<li><?= esc_html( $flag['name'] ) ?></li>
+								<?php endforeach; ?>
+							</ul>
+						<?php endif; ?>
 					</div>
 				</div>
 
