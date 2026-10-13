@@ -44,7 +44,7 @@ $store_url = mcd_single_page_url('mycenterstore');
 						} ) );
 						?>
 						<?php if( ! empty( $custom_flags ) ) : ?>
-							<ul class="custom-flags eyeon-hide">
+							<ul class="custom-flags">
 								<?php foreach( $custom_flags as $flag ) : ?>
 									<li><?= esc_html( $flag['name'] ) ?></li>
 								<?php endforeach; ?>

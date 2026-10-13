@@ -11,10 +11,16 @@
 
         .mcd-retailer-image {
           position: relative;
+          padding-top: 100%;
 
           img {
             width: 100%;
-            height: auto;
+            height: 100%;
+            object-fit: contain;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: rgba(0, 0, 0, 0.06);
           }
 
           .custom-flags {
@@ -169,7 +175,7 @@
         flex-direction: column;
         gap: 20px;
 
-        .mcd-retailer-image-col .mcd-retailer-image img {
+        .mcd-retailer-image-col {
           max-width: 400px;
         }
       }
