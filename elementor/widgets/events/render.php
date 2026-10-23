@@ -368,6 +368,23 @@ jQuery(document).ready(function($) {
     });
   }
 
+  function eventCategories(event) {
+    const source = Array.isArray(event.categories) && event.categories.length
+      ? event.categories
+      : (event.category ? [event.category] : []);
+    const categories = [];
+    source.forEach(function(category) {
+      if (!category || category.id == null || category.id === '') return;
+      const id = Number(category.id);
+      if (!Number.isFinite(id) || categories.some(function(item) { return item.id === id; })) return;
+      categories.push({
+        id: id,
+        title: category.title || category.name || '',
+      });
+    });
+    return categories;
+  }
+
   function parse_events(response) {
     if (response.items) {
       let allEvents = response.items.filter(isEventPubliclyLive);
@@ -380,8 +397,9 @@ jQuery(document).ready(function($) {
 
       if (event_category > 0) {
         allEvents = allEvents.filter(function(event) {
-          if (!event.category) return false;
-          return event.category && event.category.id === event_category;
+          return eventCategories(event).some(function(category) {
+            return category.id === Number(event_category);
+          });
         });
       }
       
@@ -424,8 +442,7 @@ jQuery(document).ready(function($) {
   function setup_categories() {
     let fetchedCategories = [];
     events.forEach(item => {
-      item.categories = [];
-      if(item.category) item.categories.push(item.category);
+      item.categories = eventCategories(item);
 
       item.categories.forEach(category => {
         if( !(fetchedCategories.some(cat => cat.id === category.id)) ) {
@@ -445,7 +462,9 @@ jQuery(document).ready(function($) {
       return 0;
     });
 
-    categories = [{id: 0, name: 'All'}].concat(fetchedCategories);
+    categories = [{id: 0, name: 'All'}, {id: -2, name: 'Ongoing'}]
+      .concat(fetchedCategories)
+      .concat([{id: -1, name: 'Others'}]);
 
     categoryList.html('');
     categoryDropdownList.html('');
@@ -545,9 +564,15 @@ jQuery(document).ready(function($) {
     <?php include(MCD_PLUGIN_PATH.'elementor/widgets/common/carousel/setup-js.php'); ?>
   }
   function filterByCategory(categoryId = 0) {
+    const selectedId = Number(categoryId);
     eventsList.find('.event').addClass('eyeon-hide');
     events.forEach(item => {
-      if (categoryId == 0 || item.categories.some(cat => cat.id == categoryId)) {
+      const categories = item.categories || [];
+      const visible = selectedId === 0
+        || (selectedId === -2 && item.event_type === 'ongoing')
+        || (selectedId === -1 && categories.length === 0)
+        || categories.some(cat => Number(cat.id) === selectedId);
+      if (visible) {
         eventsList.find('.event.event-'+item.id).removeClass('eyeon-hide');
       }
     });
