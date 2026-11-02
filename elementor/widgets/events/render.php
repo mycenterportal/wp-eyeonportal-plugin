@@ -253,79 +253,156 @@ jQuery(document).ready(function($) {
     return isOnetimeUpcoming(event, now.date, now.time);
   }
 
+  function resolvedListDateDisplay(event) {
+    let mode = event.list_page_date_display || 'upcoming';
+    // One-time "Hide Date" used to be stored as dateRange.
+    if (event.event_type === 'onetime' && mode === 'dateRange') mode = 'hide';
+    return mode;
+  }
+
+  function listTimeResult(event, showTimeSetting) {
+    const timeStart = showTimeSetting && event.start_time ? event.start_time : null;
+    const timeEnd = showTimeSetting && event.end_time ? event.end_time : null;
+    return {
+      showTime: !!(timeStart && timeEnd),
+      timeStart: timeStart,
+      timeEnd: timeEnd,
+    };
+  }
+
+  function dateRangeLabel(event) {
+    const startFmt = eyeonFormatDate(event.start_date);
+    const endFmt = eyeonFormatDate(event.end_date);
+    if (startFmt && endFmt) return startFmt + ' - ' + endFmt;
+    if (startFmt) return startFmt + ' - Ongoing';
+    return 'Ongoing';
+  }
+
+  function ongoingUpcomingLabel(event) {
+    const nowInfo = getCenterNow(event.center_timezone || wpTimezone);
+    if (event.repeat_rrule) {
+      try {
+        const rule = rrule.RRule.fromString(event.repeat_rrule);
+        const now = new Date();
+        const to = new Date();
+        to.setMonth(to.getMonth() + 12);
+        const hits = rule.between(now, to, true);
+        if (hits.length) return eyeonFormatDate(occurrenceCalendarDate(hits[0]));
+      } catch (e) {}
+    }
+    const start = calendarDate(event.start_date);
+    if (start && start > nowInfo.date) return eyeonFormatDate(start);
+    return 'Ongoing';
+  }
+
+  /** Next recurring occurrence strictly after today, through end_date or one year. */
+  function nextRecurringDateAfterToday(event) {
+    const today = getCenterNow(event.center_timezone || wpTimezone).date;
+    const startBound = calendarDate(event.start_date);
+    const endBound = calendarDate(event.end_date);
+    if (!event.repeat_rrule) {
+      return startBound && startBound > today ? startBound : null;
+    }
+    try {
+      const rule = rrule.RRule.fromString(event.repeat_rrule);
+      const parts = today.split('-').map(Number);
+      const from = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+      let until = new Date(Date.UTC(parts[0] + 1, parts[1] - 1, parts[2], 23, 59, 59));
+      if (endBound) {
+        const endParts = endBound.split('-').map(Number);
+        const endUntil = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2], 23, 59, 59));
+        if (endUntil < until) until = endUntil;
+      }
+      if (until < from) return null;
+      const hits = rule.between(from, until, true);
+      for (let i = 0; i < hits.length; i++) {
+        const dateStr = occurrenceCalendarDate(hits[i]);
+        if (startBound && dateStr < startBound) continue;
+        if (endBound && dateStr > endBound) continue;
+        return dateStr;
+      }
+      return null;
+    } catch (e) {
+      return startBound && startBound > today ? startBound : null;
+    }
+  }
+
   /**
    * Shared list-page date/time display resolver for every event type.
    * Modes: hide | dateRange | show | upcoming | allUpcoming | allDates
    */
   function getListPageDisplay(event) {
-    const dateDisplay = event.list_page_date_display;
-    const showTimeSetting = event.list_page_time_display === 'show' && !event.is_all_day_event;
+    const dateDisplay = resolvedListDateDisplay(event);
+    const showTimeSetting = (event.list_page_time_display || 'show') === 'show' && !event.is_all_day_event;
+    const times = listTimeResult(event, showTimeSetting);
+    const isCustom = event.event_type === 'custom';
 
-    if (!dateDisplay || dateDisplay === 'hide') {
-      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+    if (dateDisplay === 'hide') {
+      if (isCustom) {
+        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
+      }
+      return { showDate: false, dateText: null, showTime: times.showTime, timeStart: times.timeStart, timeEnd: times.timeEnd };
     }
 
-    if (dateDisplay === 'dateRange') {
-      const startFmt = eyeonFormatDate(event.start_date);
-      const endFmt = eyeonFormatDate(event.end_date);
-      let dateText = startFmt;
-      if (endFmt && event.end_date && event.end_date !== event.start_date) {
-        dateText = `${startFmt} - ${endFmt}`;
-      }
+    if (dateDisplay === 'dateRange' && !isCustom) {
       return {
-        showDate: !!startFmt,
-        showTime: showTimeSetting && !!(event.start_time && event.end_time),
-        dateText: dateText || null,
-        timeStart: event.start_time || null,
-        timeEnd: event.end_time || null,
+        showDate: true,
+        dateText: dateRangeLabel(event),
+        showTime: times.showTime,
+        timeStart: times.timeStart,
+        timeEnd: times.timeEnd,
       };
     }
 
-    if (dateDisplay === 'show') {
-      const startFmt = eyeonFormatDate(event.start_date);
-      let dateText = startFmt;
-      if (event.end_date && event.end_date !== event.start_date) {
-        const endFmt = eyeonFormatDate(event.end_date);
-        if (endFmt) dateText = `${startFmt} - ${endFmt}`;
+    if (!isCustom && (dateDisplay === 'show' || event.event_type === 'onetime')) {
+      const dateText = eyeonFormatDate(event.start_date);
+      return {
+        showDate: !!dateText,
+        dateText: dateText || null,
+        showTime: times.showTime,
+        timeStart: times.timeStart,
+        timeEnd: times.timeEnd,
+      };
+    }
+
+    if (event.event_type === 'ongoing') {
+      return {
+        showDate: true,
+        dateText: ongoingUpcomingLabel(event),
+        showTime: times.showTime,
+        timeStart: times.timeStart,
+        timeEnd: times.timeEnd,
+      };
+    }
+
+    if (event.event_type === 'recurring' && dateDisplay === 'upcoming') {
+      const next = nextRecurringDateAfterToday(event);
+      if (!next) {
+        return { showDate: false, dateText: null, showTime: times.showTime, timeStart: times.timeStart, timeEnd: times.timeEnd };
       }
       return {
-        showDate: !!startFmt,
-        showTime: showTimeSetting && !!(event.start_time && event.end_time),
-        dateText: dateText || null,
-        timeStart: event.start_time || null,
-        timeEnd: event.end_time || null,
+        showDate: true,
+        dateText: eyeonFormatDate(next),
+        showTime: times.showTime,
+        timeStart: times.timeStart,
+        timeEnd: times.timeEnd,
       };
     }
 
     const slots = event._dateSlots || [];
-    const centerTz = event.center_timezone || wpTimezone;
-    const now = getCenterNow(centerTz);
-    const isAllDay = !!event.is_all_day_event;
-
+    const today = getCenterNow(event.center_timezone || wpTimezone).date;
     let displaySlots = [];
     if (dateDisplay === 'allDates') {
       displaySlots = slots;
     } else if (dateDisplay === 'allUpcoming') {
-      displaySlots = slots.filter((slot) =>
-        isOccurrenceUpcoming(slot.date, slot.end_time, now.date, now.time, isAllDay)
-      );
+      displaySlots = slots.filter((slot) => slot.date >= today);
     } else {
-      // upcoming (default for any other mode)
-      const upcoming = findUpcomingSlot(slots, event);
+      const upcoming = slots.find((slot) => slot.date >= today);
       displaySlots = upcoming ? [upcoming] : [];
     }
 
     if (displaySlots.length === 0) {
-      // Fall back to start_date so the card still shows something meaningful
-      if (event.start_date) {
-        displaySlots = [{
-          date: event.start_date,
-          start_time: event.start_time,
-          end_time: event.end_time,
-        }];
-      } else {
-        return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
-      }
+      return { showDate: false, showTime: false, dateText: null, timeStart: null, timeEnd: null };
     }
 
     const first = displaySlots[0];

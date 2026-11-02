@@ -3,11 +3,16 @@ $mycenterevent = $this->mcd_settings['mycenterevent'];
 $formatted_start_time = eyeon_format_time($mycenterevent['start_time']);
 $formatted_end_time = eyeon_format_time($mycenterevent['end_time']);
 
-$date_display = isset($mycenterevent['single_page_date_display']) ? $mycenterevent['single_page_date_display'] : null;
-$time_display = isset($mycenterevent['single_page_time_display']) ? $mycenterevent['single_page_time_display'] : null;
 $event_type = isset($mycenterevent['event_type']) ? $mycenterevent['event_type'] : 'onetime';
+$date_display = isset($mycenterevent['single_page_date_display']) ? $mycenterevent['single_page_date_display'] : '';
+$time_display = isset($mycenterevent['single_page_time_display']) ? $mycenterevent['single_page_time_display'] : 'show';
+if ($date_display === '' || $date_display === null) {
+  if ($event_type === 'onetime') $date_display = 'show';
+  elseif ($event_type === 'custom') $date_display = 'allDates';
+  else $date_display = 'upcoming';
+}
 $custom_dates = isset($mycenterevent['custom_dates']) ? eyeon_sort_custom_dates($mycenterevent['custom_dates']) : [];
-$show_time = ($time_display === 'show' && !$mycenterevent['is_all_day_event']);
+$show_time = ($time_display === 'show' && empty($mycenterevent['is_all_day_event']));
 
 $center_timezone = null;
 if (!empty($mycenterevent['center']['timezone'])) {
@@ -18,118 +23,140 @@ $has_recurrence = eyeon_event_has_recurrence($mycenterevent);
 $is_all_day = !empty($mycenterevent['is_all_day_event']);
 
 $event_dates_list = [];
+$standalone_time_start = null;
+$standalone_time_end = null;
 
-if ($date_display === 'upcoming') {
-  if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
+if ($date_display === 'hide') {
+  if ($show_time) {
+    if ($event_type === 'custom' && !empty($custom_dates[0]['start_time']) && !empty($custom_dates[0]['end_time'])) {
+      $standalone_time_start = $custom_dates[0]['start_time'];
+      $standalone_time_end = $custom_dates[0]['end_time'];
+    } elseif (!empty($mycenterevent['start_time']) && !empty($mycenterevent['end_time'])) {
+      $standalone_time_start = $mycenterevent['start_time'];
+      $standalone_time_end = $mycenterevent['end_time'];
+    }
+  }
+} elseif ($date_display === 'dateRange') {
+  if ($event_type === 'custom' && count($custom_dates) > 0) {
+    $first = $custom_dates[0];
+    $last = $custom_dates[count($custom_dates) - 1];
+    $event_dates_list[] = [
+      'label' => eyeon_format_date($first['date']) . ' - ' . eyeon_format_date($last['date']),
+      'start_time' => $mycenterevent['start_time'],
+      'end_time' => $mycenterevent['end_time'],
+    ];
+  } else {
+    $event_dates_list[] = [
+      'label' => eyeon_event_date_range_label($mycenterevent['start_date'] ?? null, $mycenterevent['end_date'] ?? null),
+      'start_time' => $mycenterevent['start_time'],
+      'end_time' => $mycenterevent['end_time'],
+    ];
+  }
+} elseif ($date_display === 'show') {
+  $show_label = eyeon_format_date($mycenterevent['start_date'] ?? null);
+  if ($show_label !== '') {
+    $event_dates_list[] = [
+      'label' => $show_label,
+      'start_time' => $mycenterevent['start_time'],
+      'end_time' => $mycenterevent['end_time'],
+    ];
+  }
+} elseif ($date_display === 'upcoming') {
+  if ($event_type === 'ongoing') {
+    $event_dates_list[] = [
+      'label' => eyeon_ongoing_upcoming_label($mycenterevent),
+      'start_time' => null,
+      'end_time' => null,
+    ];
+  } elseif ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
+    $tomorrow = eyeon_day_after(eyeon_center_now($center_timezone)['date']);
+    $lower = eyeon_calendar_date($mycenterevent['start_date'] ?? null);
+    if ($lower === '' || $tomorrow > $lower) $lower = $tomorrow;
     $occurrences = eyeon_get_rrule_occurrences(
       $mycenterevent['repeat_rrule'],
       true,
       $center_timezone,
       $mycenterevent['end_time'] ?? null,
       $is_all_day,
-      $mycenterevent['start_date'] ?? null
+      $lower
     );
     if (!empty($occurrences)) {
-      $event_dates_list[] = [
-        'date' => eyeon_rrule_occurrence_calendar_date($occurrences[0]),
-        'start_time' => $mycenterevent['start_time'],
-        'end_time' => $mycenterevent['end_time'],
-      ];
-    } else {
-      $event_dates_list[] = [
-        'date' => $mycenterevent['start_date'],
-        'start_time' => $mycenterevent['start_time'],
-        'end_time' => $mycenterevent['end_time'],
-      ];
+      $occ_date = eyeon_rrule_occurrence_calendar_date($occurrences[0]);
+      $end_bound = eyeon_calendar_date($mycenterevent['end_date'] ?? null);
+      if ($end_bound === '' || $occ_date <= $end_bound) {
+        $event_dates_list[] = [
+          'label' => eyeon_format_date($occ_date),
+          'start_time' => $mycenterevent['start_time'],
+          'end_time' => $mycenterevent['end_time'],
+        ];
+      }
     }
   } elseif ($event_type === 'custom') {
-    $upcoming = eyeon_get_upcoming_custom_date($custom_dates, $center_timezone);
+    $today = eyeon_center_now($center_timezone)['date'];
+    $upcoming = null;
+    foreach ($custom_dates as $cd) {
+      if (!empty($cd['date']) && eyeon_calendar_date($cd['date']) >= $today) {
+        $upcoming = $cd;
+        break;
+      }
+    }
     if ($upcoming) {
-      $event_dates_list[] = $upcoming;
-    } else {
       $event_dates_list[] = [
-        'date' => $mycenterevent['start_date'],
-        'start_time' => $mycenterevent['start_time'],
-        'end_time' => $mycenterevent['end_time'],
+        'label' => eyeon_format_date($upcoming['date']),
+        'start_time' => $upcoming['start_time'] ?? null,
+        'end_time' => $upcoming['end_time'] ?? null,
       ];
     }
   } else {
-    $event_dates_list[] = [
-      'date' => $mycenterevent['start_date'],
-      'start_time' => $mycenterevent['start_time'],
-      'end_time' => $mycenterevent['end_time'],
-    ];
+    $show_label = eyeon_format_date($mycenterevent['start_date'] ?? null);
+    if ($show_label !== '') {
+      $event_dates_list[] = [
+        'label' => $show_label,
+        'start_time' => $mycenterevent['start_time'],
+        'end_time' => $mycenterevent['end_time'],
+      ];
+    }
   }
-} elseif ($date_display === 'dateRange') {
-  $event_dates_list = 'range';
-} elseif ($date_display === 'show') {
-  $event_dates_list = 'show';
-} elseif ($date_display === 'allUpcoming') {
+} elseif ($date_display === 'allUpcoming' || $date_display === 'allDates') {
   if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
     $occurrences = eyeon_get_rrule_occurrences(
       $mycenterevent['repeat_rrule'],
-      true,
+      $date_display === 'allUpcoming',
       $center_timezone,
       $mycenterevent['end_time'] ?? null,
       $is_all_day,
       $mycenterevent['start_date'] ?? null
     );
+    $end_bound = eyeon_calendar_date($mycenterevent['end_date'] ?? null);
     foreach ($occurrences as $occ) {
+      $occ_date = eyeon_rrule_occurrence_calendar_date($occ);
+      if ($end_bound !== '' && $occ_date > $end_bound) continue;
       $event_dates_list[] = [
-        'date' => eyeon_rrule_occurrence_calendar_date($occ),
+        'label' => eyeon_format_date($occ_date),
         'start_time' => $mycenterevent['start_time'],
         'end_time' => $mycenterevent['end_time'],
       ];
     }
   } elseif ($event_type === 'custom') {
-    $now = eyeon_center_now($center_timezone);
-    $today = $now['date'];
-    $now_time = $now['time'];
+    $today = eyeon_center_now($center_timezone)['date'];
     foreach ($custom_dates as $cd) {
       if (empty($cd['date'])) continue;
-      $cd_all_day = empty($cd['end_time']) && empty($cd['start_time']);
-      if (eyeon_is_occurrence_upcoming($cd['date'], $cd['end_time'] ?? null, $today, $now_time, $cd_all_day)) {
-        $event_dates_list[] = $cd;
+      if ($date_display === 'allUpcoming' && eyeon_calendar_date($cd['date']) < $today) {
+        continue;
       }
-    }
-  }
-  if (empty($event_dates_list)) {
-    $event_dates_list[] = [
-      'date' => $mycenterevent['start_date'],
-      'start_time' => $mycenterevent['start_time'],
-      'end_time' => $mycenterevent['end_time'],
-    ];
-  }
-} elseif ($date_display === 'allDates') {
-  if ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
-    $occurrences = eyeon_get_rrule_occurrences(
-      $mycenterevent['repeat_rrule'],
-      false,
-      $center_timezone,
-      $mycenterevent['end_time'] ?? null,
-      $is_all_day,
-      $mycenterevent['start_date'] ?? null
-    );
-    foreach ($occurrences as $occ) {
       $event_dates_list[] = [
-        'date' => eyeon_rrule_occurrence_calendar_date($occ),
-        'start_time' => $mycenterevent['start_time'],
-        'end_time' => $mycenterevent['end_time'],
+        'label' => eyeon_format_date($cd['date']),
+        'start_time' => $cd['start_time'] ?? null,
+        'end_time' => $cd['end_time'] ?? null,
       ];
     }
-  } elseif ($event_type === 'custom') {
-    foreach ($custom_dates as $cd) {
-      if (!empty($cd['date'])) {
-        $event_dates_list[] = $cd;
-      }
-    }
   }
-  if (empty($event_dates_list)) {
-    $event_dates_list[] = [
-      'date' => $mycenterevent['start_date'],
-      'start_time' => $mycenterevent['start_time'],
-      'end_time' => $mycenterevent['end_time'],
-    ];
+}
+
+if ($show_time && empty($event_dates_list) && $date_display !== 'hide' && $event_type !== 'ongoing' && $event_type !== 'custom') {
+  if (!empty($mycenterevent['start_time']) && !empty($mycenterevent['end_time'])) {
+    $standalone_time_start = $mycenterevent['start_time'];
+    $standalone_time_end = $mycenterevent['end_time'];
   }
 }
 
@@ -184,52 +211,31 @@ if( isset($mycenterevent['next']) ) {
 				<div class="mcd-event-details-col">
 					<div class="mcd-event-name"><?= $mycenterevent['title'] ?></div>
 
-          <?php if( $date_display && $date_display !== 'hide' ) : ?>
+          <?php if( (is_array($event_dates_list) && count($event_dates_list) > 0) || ($standalone_time_start && $standalone_time_end) ) : ?>
             <div class="mcd-event-date-time">
-              <?php if( $event_dates_list === 'range' ) : ?>
-                <?php
-                  $range_str = eyeon_format_date($mycenterevent['start_date']);
-                  if (!empty($mycenterevent['end_date']) && $mycenterevent['end_date'] !== $mycenterevent['start_date']) {
-                    $end_fmt = eyeon_format_date($mycenterevent['end_date']);
-                    if ($end_fmt !== '') {
-                      $range_str .= ' - ' . $end_fmt;
-                    }
-                  }
-                ?>
-                <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $range_str ?></span>
-                <?php if( $show_time ) : ?>
-                  <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= $formatted_start_time ?> - <?= $formatted_end_time ?></span>
+              <?php if( is_array($event_dates_list) && count($event_dates_list) === 1 ) : ?>
+                <?php if( !empty($event_dates_list[0]['label']) ) : ?>
+                  <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $event_dates_list[0]['label'] ?></span>
                 <?php endif; ?>
-              <?php elseif( $event_dates_list === 'show' ) : ?>
-                <?php
-                  $show_date_str = eyeon_format_date($mycenterevent['start_date']);
-                  if (!empty($mycenterevent['end_date']) && $mycenterevent['start_date'] !== $mycenterevent['end_date']) {
-                    $end_fmt = eyeon_format_date($mycenterevent['end_date']);
-                    if ($end_fmt !== '') {
-                      $show_date_str .= ' - ' . $end_fmt;
-                    }
-                  }
-                ?>
-                <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $show_date_str ?></span>
-                <?php if( $show_time ) : ?>
-                  <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= $formatted_start_time ?> - <?= $formatted_end_time ?></span>
-                <?php endif; ?>
-              <?php elseif( is_array($event_dates_list) && count($event_dates_list) === 1 ) : ?>
-                <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= eyeon_format_date($event_dates_list[0]['date']) ?></span>
-                <?php if( $show_time && !empty($event_dates_list[0]['start_time']) ) : ?>
+                <?php if( $show_time && !empty($event_dates_list[0]['start_time']) && !empty($event_dates_list[0]['end_time']) ) : ?>
                   <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= eyeon_format_time($event_dates_list[0]['start_time']) ?> - <?= eyeon_format_time($event_dates_list[0]['end_time']) ?></span>
                 <?php endif; ?>
               <?php elseif( is_array($event_dates_list) && count($event_dates_list) > 1 ) : ?>
                 <ul class="event-dates-list">
                   <?php foreach( $event_dates_list as $d ) : ?>
                     <li>
-                      <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= eyeon_format_date($d['date']) ?></span>
-                      <?php if( $show_time && !empty($d['start_time']) ) : ?>
+                      <?php if( !empty($d['label']) ) : ?>
+                        <span class="mcd-event-dates"><i class="far fa-calendar-alt"></i>&nbsp;<?= $d['label'] ?></span>
+                      <?php endif; ?>
+                      <?php if( $show_time && !empty($d['start_time']) && !empty($d['end_time']) ) : ?>
                         <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= eyeon_format_time($d['start_time']) ?> - <?= eyeon_format_time($d['end_time']) ?></span>
                       <?php endif; ?>
                     </li>
                   <?php endforeach; ?>
                 </ul>
+              <?php endif; ?>
+              <?php if( $standalone_time_start && $standalone_time_end && count($event_dates_list) === 0 ) : ?>
+                <span class="mcd-event-times"><i class="far fa-clock"></i>&nbsp;<?= eyeon_format_time($standalone_time_start) ?> - <?= eyeon_format_time($standalone_time_end) ?></span>
               <?php endif; ?>
             </div>
           <?php endif; ?>
