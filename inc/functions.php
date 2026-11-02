@@ -401,6 +401,71 @@ function eyeon_event_has_recurrence($event) {
   return $type === 'recurring';
 }
 
+function eyeon_calendar_date($value) {
+  if ($value instanceof DateTimeInterface) {
+    return (clone $value)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d');
+  }
+  if (empty($value)) return '';
+  if (preg_match('/^(\d{4}-\d{2}-\d{2})/', trim((string) $value), $m)) {
+    return $m[1];
+  }
+  return '';
+}
+
+function eyeon_day_after($date) {
+  $dt = DateTime::createFromFormat('!Y-m-d', $date, new DateTimeZone('UTC'));
+  if (!$dt) return $date;
+  $dt->modify('+1 day');
+  return $dt->format('Y-m-d');
+}
+
+/** "Jan 1, 2026 - Jan 5, 2026", or "Jan 1, 2026 - Ongoing" when there is no end date. */
+function eyeon_event_date_range_label($start, $end) {
+  $start_fmt = eyeon_format_date($start);
+  $end_fmt = eyeon_format_date($end);
+  if ($start_fmt !== '' && $end_fmt !== '') {
+    return $start_fmt . ' - ' . $end_fmt;
+  }
+  if ($start_fmt !== '') {
+    return $start_fmt . ' - Ongoing';
+  }
+  return 'Ongoing';
+}
+
+/**
+ * Ongoing "Show Upcoming Date": the next occurrence, or Ongoing once the event has started.
+ */
+function eyeon_ongoing_upcoming_label($event) {
+  $timezone = null;
+  if (is_array($event['center'] ?? null) && !empty($event['center']['timezone'])) {
+    $timezone = $event['center']['timezone'];
+  } elseif (!empty($event['center_timezone'])) {
+    $timezone = $event['center_timezone'];
+  }
+
+  $rrule_string = isset($event['repeat_rrule']) ? $event['repeat_rrule'] : '';
+  if (!empty($rrule_string)) {
+    try {
+      $rule = new \RRule\RRule($rrule_string);
+      $begin = new DateTime('now');
+      $end = (clone $begin)->modify('+12 months');
+      $hits = $rule->getOccurrencesBetween($begin, $end, 1);
+      if (!empty($hits)) {
+        return eyeon_format_date($hits[0]);
+      }
+    } catch (\Exception $e) {
+      // fall through
+    }
+  }
+
+  $start = eyeon_calendar_date(isset($event['start_date']) ? $event['start_date'] : null);
+  $today = eyeon_center_now($timezone)['date'];
+  if ($start !== '' && $start > $today) {
+    return eyeon_format_date($start);
+  }
+  return 'Ongoing';
+}
+
 /**
  * Expand an RRULE into DateTime occurrences.
  *
