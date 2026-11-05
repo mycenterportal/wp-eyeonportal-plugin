@@ -69,9 +69,10 @@ if ($date_display === 'hide') {
       'end_time' => null,
     ];
   } elseif ($has_recurrence && !empty($mycenterevent['repeat_rrule'])) {
-    $tomorrow = eyeon_day_after(eyeon_center_now($center_timezone)['date']);
+    // Include today while the occurrence is still upcoming (end time / all-day).
+    $today = eyeon_center_now($center_timezone)['date'];
     $lower = eyeon_calendar_date($mycenterevent['start_date'] ?? null);
-    if ($lower === '' || $tomorrow > $lower) $lower = $tomorrow;
+    if ($lower === '' || $today > $lower) $lower = $today;
     $occurrences = eyeon_get_rrule_occurrences(
       $mycenterevent['repeat_rrule'],
       true,
@@ -92,14 +93,7 @@ if ($date_display === 'hide') {
       }
     }
   } elseif ($event_type === 'custom') {
-    $today = eyeon_center_now($center_timezone)['date'];
-    $upcoming = null;
-    foreach ($custom_dates as $cd) {
-      if (!empty($cd['date']) && eyeon_calendar_date($cd['date']) >= $today) {
-        $upcoming = $cd;
-        break;
-      }
-    }
+    $upcoming = eyeon_get_upcoming_custom_date($custom_dates, $center_timezone);
     if ($upcoming) {
       $event_dates_list[] = [
         'label' => eyeon_format_date($upcoming['date']),
