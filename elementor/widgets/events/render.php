@@ -295,18 +295,22 @@ jQuery(document).ready(function($) {
     return 'Ongoing';
   }
 
-  /** Next recurring occurrence strictly after today, through end_date or one year. */
+  /** Next recurring occurrence still upcoming (includes today until end time / all-day), through end_date or one year. */
   function nextRecurringDateAfterToday(event) {
-    const today = getCenterNow(event.center_timezone || wpTimezone).date;
+    const now = getCenterNow(event.center_timezone || wpTimezone);
+    const today = now.date;
     const startBound = calendarDate(event.start_date);
     const endBound = calendarDate(event.end_date);
+    const isAllDay = !!event.is_all_day_event;
     if (!event.repeat_rrule) {
-      return startBound && startBound > today ? startBound : null;
+      return startBound && isOccurrenceUpcoming(startBound, event.end_time, today, now.time, isAllDay)
+        ? startBound
+        : null;
     }
     try {
       const rule = rrule.RRule.fromString(event.repeat_rrule);
       const parts = today.split('-').map(Number);
-      const from = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+      const from = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
       let until = new Date(Date.UTC(parts[0] + 1, parts[1] - 1, parts[2], 23, 59, 59));
       if (endBound) {
         const endParts = endBound.split('-').map(Number);
@@ -319,11 +323,14 @@ jQuery(document).ready(function($) {
         const dateStr = occurrenceCalendarDate(hits[i]);
         if (startBound && dateStr < startBound) continue;
         if (endBound && dateStr > endBound) continue;
+        if (!isOccurrenceUpcoming(dateStr, event.end_time, today, now.time, isAllDay)) continue;
         return dateStr;
       }
       return null;
     } catch (e) {
-      return startBound && startBound > today ? startBound : null;
+      return startBound && isOccurrenceUpcoming(startBound, event.end_time, today, now.time, isAllDay)
+        ? startBound
+        : null;
     }
   }
 
@@ -397,7 +404,7 @@ jQuery(document).ready(function($) {
     } else if (dateDisplay === 'allUpcoming') {
       displaySlots = slots.filter((slot) => slot.date >= today);
     } else {
-      const upcoming = slots.find((slot) => slot.date >= today);
+      const upcoming = findUpcomingSlot(slots, event);
       displaySlots = upcoming ? [upcoming] : [];
     }
 
