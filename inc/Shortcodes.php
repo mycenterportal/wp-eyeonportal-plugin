@@ -259,6 +259,18 @@ if( !class_exists('MCDShortcodes') ) {
 				$this->og_description = @$storeData['description'] ?: '';
 				$this->og_image = @$storeData['media']['url'] ?: '';
 			} elseif ( array_key_exists( 'mycenterevent', $wp_query->query_vars ) ) {
+				$req_url = MCD_API_EVENTS.'/'.get_query_var('mycenterevent', 0);
+				$response = mcd_api_data($req_url);
+				if ( (int) ($response['status'] ?? 0) === 404 ) {
+					// Keep the requested URL. Hello Elementor has no 404.php, so mark the
+					// query and let the normal template loader render the theme 404.
+					unset( $wp_query->query_vars['mycenterevent'] );
+					$wp_query->set_404();
+					status_header( 404 );
+					nocache_headers();
+					return;
+				}
+
 				$this->template = 'templates/event.php';
 
         // ==================
@@ -266,8 +278,6 @@ if( !class_exists('MCDShortcodes') ) {
 				// mcd_include_js('add-to-calendar', 'assets/plugins/add-to-calendar.min.js', true);
         // ==================
 
-				$req_url = MCD_API_EVENTS.'/'.get_query_var('mycenterevent', 0);
-        $response = mcd_api_data($req_url);
         $eventData = $response['data'];
 				$this->mcd_settings['mycenterevent'] = $eventData;
 				if( $this->mcd_settings['events_single_page_title'] == 'custom' ) {
